@@ -4,9 +4,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-data/raw/
-data/*.csv
-data/*.parquet
+# datasets — never commit (multi-GB); keep only the docs
+data/*
+!data/README.md
+!data/download.sh
 chroma/
 .env
 *.log
