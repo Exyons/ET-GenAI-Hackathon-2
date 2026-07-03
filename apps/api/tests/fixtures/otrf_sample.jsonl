@@ -1,0 +1,3 @@
+{"EventID": 1, "@timestamp": "2021-06-11T09:07:15.635Z", "UtcTime": "2021-06-12 01:07:15.633", "Hostname": "WORKSTATION5", "User": "WORKSTATION5\\APT-Simulator", "Image": "C:\\Windows\\System32\\PING.EXE", "CommandLine": "ping -n 3 127.0.0.1"}
+{"EventID": 3, "@timestamp": "2021-06-11T09:07:16.000Z", "Hostname": "WORKSTATION5", "DestinationIp": "10.0.0.5"}
+{"EventID": 1, "@timestamp": "2021-06-11T09:08:00.000Z", "Hostname": "WORKSTATION5", "User": "WORKSTATION5\\APT-Simulator", "Image": "C:\\Windows\\System32\\whoami.exe", "CommandLine": "whoami"}
