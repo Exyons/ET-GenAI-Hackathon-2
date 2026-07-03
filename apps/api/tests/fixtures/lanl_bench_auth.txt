@@ -1,0 +1,10 @@
+1000,U7@DOM1,U7@DOM1,C7,C10,Kerberos,Network,LogOn,Success
+1001,U7@DOM1,U7@DOM1,C7,C10,Kerberos,Network,LogOn,Success
+1002,U7@DOM1,U7@DOM1,C7,C11,Kerberos,Network,LogOn,Success
+1003,U7@DOM1,U7@DOM1,C7,C10,Kerberos,Network,LogOn,Success
+1004,U7@DOM1,U7@DOM1,C7,C11,Kerberos,Network,LogOn,Success
+1005,U7@DOM1,U7@DOM1,C7,C10,Kerberos,Network,LogOn,Success
+1006,U7@DOM1,U7@DOM1,C7,C11,Kerberos,Network,LogOn,Success
+1007,U7@DOM1,U7@DOM1,C7,C10,Kerberos,Network,LogOn,Success
+2000,U7@DOM1,U7@DOM1,C7,C500,NTLM,Network,LogOn,Success
+2001,U7@DOM1,U7@DOM1,C7,C501,NTLM,Network,LogOn,Success
