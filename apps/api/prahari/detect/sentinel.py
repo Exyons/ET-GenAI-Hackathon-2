@@ -63,6 +63,19 @@ class Sentinel:
             + (1.0 - self.novelty_weight) * self._if_norm(event)
         )
 
+    def anomaly_scores(self, events: list[CanonicalEvent]) -> np.ndarray:
+        if not events:
+            return np.empty(0, dtype=float)
+        x = np.array([self.baseline.featurize(e) for e in events], dtype=float)
+        novelty = x @ _WEIGHTS
+        raw = -self.model.score_samples(x)
+        rng = self._if_max - self._if_min
+        if rng > 0:
+            if_norm = np.clip((raw - self._if_min) / rng, 0.0, 1.0)
+        else:
+            if_norm = np.zeros(len(events), dtype=float)
+        return self.novelty_weight * novelty + (1.0 - self.novelty_weight) * if_norm
+
     def suggest_threshold(
         self, train_events: list[CanonicalEvent], quantile: float = 0.95
     ) -> float:
