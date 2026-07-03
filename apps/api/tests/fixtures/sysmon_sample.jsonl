@@ -1,0 +1,2 @@
+{"UtcTime": "2017-07-05T15:32:19+00:00", "User": "U342@DOM1", "Computer": "C553", "Image": "C:\\Windows\\System32\\cmd.exe", "CommandLine": "cmd /c whoami", "_labels": ["redteam"]}
+{"UtcTime": "2017-07-05T15:31:00+00:00", "User": "U100@DOM1", "Computer": "C1115", "Image": "C:\\Windows\\System32\\notepad.exe", "CommandLine": "notepad.exe"}
