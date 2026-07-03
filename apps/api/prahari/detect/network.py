@@ -27,3 +27,10 @@ class NetworkSentinel:
         x = np.array([_features(event)], dtype=float)
         xs = self.scaler.transform(x)
         return float(-self.model.score_samples(xs)[0])
+
+    def anomaly_scores(self, events: list[CanonicalEvent]) -> np.ndarray:
+        if not events:
+            return np.empty(0, dtype=float)
+        x = np.array([_features(e) for e in events], dtype=float)
+        xs = self.scaler.transform(x)
+        return -self.model.score_samples(xs)
