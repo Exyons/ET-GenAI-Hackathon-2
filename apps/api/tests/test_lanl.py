@@ -23,3 +23,4 @@ def test_lanl_parses_and_labels_redteam():
     assert e.raw.startswith("151036,U342@DOM1")
     # ("151036","U342@DOM1","C1115","C553") is in the redteam set
     assert ("151036", "U342@DOM1", "C1115", "C553") in redteam
+    assert e.auth_type == "NTLM"

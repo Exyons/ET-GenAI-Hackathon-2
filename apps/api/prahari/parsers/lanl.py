@@ -37,6 +37,7 @@ def parse_lanl_line(line: str, redteam: set[RedteamKey]) -> CanonicalEvent:
         dst_host=dc,
         action="login",
         outcome=success.lower(),
+        auth_type=atype,
         source="lanl",
         labels=labels,
         raw=line,
