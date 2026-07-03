@@ -20,6 +20,7 @@ class CanonicalEvent(BaseModel):
     dst_host: str | None = None
     action: str | None = None
     outcome: str | None = None
+    auth_type: str | None = None
     bytes: int | None = None
     duration: float | None = None
     src_internal: bool | None = None
