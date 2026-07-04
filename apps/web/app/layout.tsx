@@ -1,11 +1,19 @@
-export const metadata = { title: "Prahari SOC", description: "Cyber resilience command center" };
+import "./globals.css";
+import type { Metadata } from "next";
+import { Roboto, Roboto_Mono } from "next/font/google";
+
+const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto" });
+const robotoMono = Roboto_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-roboto-mono" });
+
+export const metadata: Metadata = {
+  title: "Prahari · Cyber Resilience Command Center",
+  description: "Behavioural threat detection for critical national infrastructure",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body style={{ background: "#0a0e14", color: "#e6edf3", fontFamily: "monospace", margin: 0 }}>
-        {children}
-      </body>
+    <html lang="en" className={`${roboto.variable} ${robotoMono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }
