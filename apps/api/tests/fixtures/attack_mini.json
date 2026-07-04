@@ -1,0 +1,5 @@
+[
+  {"id": "T1021", "name": "Remote Services", "tactics": ["lateral-movement"], "description": "Adversaries may use valid accounts to log into remote services such as SMB or RDP."},
+  {"id": "T1059", "name": "Command and Scripting Interpreter", "tactics": ["execution"], "description": "Adversaries may abuse command interpreters like cmd or PowerShell to execute commands."},
+  {"id": "T1071", "name": "Application Layer Protocol", "tactics": ["command-and-control"], "description": "Adversaries may communicate using application layer protocols such as HTTPS to blend with normal traffic."}
+]
