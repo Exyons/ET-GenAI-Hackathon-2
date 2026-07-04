@@ -51,3 +51,48 @@ def parse_lanl_file(
     for line in Path(auth_path).read_text().splitlines():
         if line.strip():
             yield parse_lanl_line(line, redteam)
+
+
+def parse_lanl_proc_line(line: str) -> CanonicalEvent | None:
+    t, user, computer, process, action = line.split(",")
+    if action.strip() != "Start":
+        return None
+    return CanonicalEvent(
+        timestamp=LANL_EPOCH + timedelta(seconds=int(t)),
+        event_type="process",
+        source_entity=user,
+        src_host=computer,
+        action="execute",
+        dest_entity=process,
+        source="lanl_proc",
+        raw=line,
+    )
+
+
+def parse_lanl_proc_file(path: str | Path) -> Iterator[CanonicalEvent]:
+    for line in Path(path).read_text().splitlines():
+        if line.strip():
+            ev = parse_lanl_proc_line(line)
+            if ev is not None:
+                yield ev
+
+
+def parse_lanl_flow_line(line: str) -> CanonicalEvent:
+    t, dur, sc, _sp, dc, _dp, _proto, _pkts, byts = line.split(",")
+    return CanonicalEvent(
+        timestamp=LANL_EPOCH + timedelta(seconds=int(t)),
+        event_type="network_flow",
+        src_host=sc,
+        dst_host=dc,
+        action="connect",
+        bytes=int(byts),
+        duration=float(dur),
+        source="lanl_flow",
+        raw=line,
+    )
+
+
+def parse_lanl_flow_file(path: str | Path) -> Iterator[CanonicalEvent]:
+    for line in Path(path).read_text().splitlines():
+        if line.strip():
+            yield parse_lanl_flow_line(line)
