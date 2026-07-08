@@ -147,4 +147,15 @@ a { color: inherit; text-decoration: none; }
   .inc-row { grid-template-columns: 1fr auto; }
   .inc-row .meta { grid-column: 1 / -1; }
 }
-@media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } }
+/* live status banner */
+.livebar { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 12.5px;
+  letter-spacing: .04em; color: var(--haze); padding: 11px 14px; margin-bottom: 12px;
+  border: 1px solid var(--line); border-left: 3px solid var(--calm); border-radius: 3px; background: var(--slate); }
+.livebar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--calm); animation: pulse 2.4s infinite; }
+.livebar b { color: var(--paper); }
+.livebar.warm { border-left-color: var(--phosphor); color: var(--phosphor); }
+.livebar.warm .dot { background: var(--phosphor); }
+.livebar.alert { border-left-color: var(--alert); color: var(--paper); background: rgba(229,72,77,.08); }
+.livebar.alert .dot { background: var(--alert); }
+
+@media (prefers-reduced-motion: reduce) { .live .dot, .livebar .dot { animation: none; } }
