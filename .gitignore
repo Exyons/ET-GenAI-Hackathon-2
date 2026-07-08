@@ -11,3 +11,6 @@ data/*
 chroma/
 .env
 *.log
+
+# generated knowledge graph (regenerable via /understand)
+.understand-anything/
