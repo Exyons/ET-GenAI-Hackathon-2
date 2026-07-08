@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { LiveConsole } from "../components/LiveConsole";
 import { TopBar } from "../components/TopBar";
 import { getIncidents, getMetrics, type IncidentSummary, type Metrics } from "../lib/api";
 
@@ -29,29 +28,6 @@ function ProofStrip({ m }: { m: Metrics }) {
         <div className="s">local · air-gapped RAG</div>
       </div>
     </div>
-  );
-}
-
-function IncidentRow({ i }: { i: IncidentSummary }) {
-  return (
-    <Link href={`/incidents/${i.id}`} className={`inc-row${i.is_true_positive ? " tp" : ""}`}>
-      <div className="entity"><span className="lbl">ENTITY</span>{i.entity}</div>
-      <div>
-        <div className="meta">
-          {i.high_confidence && <span className="pill hi">● HIGH-CONFIDENCE</span>}
-          {i.is_true_positive && <span className="pill rt">RED-TEAM CONFIRMED</span>}
-          {!i.high_confidence && !i.is_true_positive && <span className="pill calm">watch</span>}
-        </div>
-        <div className="facts">
-          <b>{i.source_count}</b> sensors · <b>{i.phase_count}</b> kill-chain phases · <b>{i.event_count}</b> events
-        </div>
-        <div className="meter"><span style={{ width: `${Math.round(i.compound_score * 100)}%` }} /></div>
-      </div>
-      <div className="score">
-        <div className="v">{i.compound_score.toFixed(2)}</div>
-        <div className="c">compound</div>
-      </div>
-    </Link>
   );
 }
 
@@ -86,14 +62,8 @@ export default async function CommandView() {
       <div className="h-sec">Detection proof — behavioural vs signature</div>
       {metrics ? <ProofStrip m={metrics} /> : <Offline error={error} />}
 
-      <div className="h-sec">Active incidents · ranked by compound risk</div>
-      {incidents.length > 0 ? (
-        <div className="inc-list">
-          {incidents.map((i) => <IncidentRow key={i.id} i={i} />)}
-        </div>
-      ) : (
-        !error && <p style={{ color: "var(--haze)" }}>No active incidents.</p>
-      )}
+      <div className="h-sec">Active incidents · live · ranked by compound risk</div>
+      <LiveConsole initial={incidents} />
     </main>
   );
 }
