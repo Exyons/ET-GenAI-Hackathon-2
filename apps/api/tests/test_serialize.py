@@ -23,3 +23,16 @@ def test_detail_timeline_and_attribution():
     assert "C553" in d.timeline[0].detail
     assert "T1021.006" in d.attribution.technique_ids
     assert d.attribution.predicted_next == "exfiltration"
+
+
+def test_to_detail_uses_passed_attribution_override():
+    from prahari.api.models import AttributionView, TechniqueView
+    from prahari.api.serialize import to_detail
+
+    view = AttributionView(
+        technique_ids=["T1059.001"],
+        techniques=[TechniqueView(id="T1059.001", name="PowerShell", tactic="execution")],
+        explanation="live", grounded=True, predicted_next="discovery")
+    d = to_detail(_c553(), view)
+    assert d.attribution.technique_ids == ["T1059.001"]      # passed view wins
+    assert d.attribution.predicted_next == "discovery"
