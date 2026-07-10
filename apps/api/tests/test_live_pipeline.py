@@ -69,3 +69,19 @@ def test_live_pipeline_detects_and_attributes(tmp_path):
         assert any(e["type"] == "attribution" and e.get("id") == "inc-c553" for e in seen)
 
     asyncio.run(run())
+
+
+def test_tick_transitions_without_new_ingest(tmp_path):
+    # a burst then silence: the buffer holds warmup + attack; tick() flips the mode
+    # on time even though no further /api/ingest arrives.
+    async def run():
+        p = LivePipeline(warmup_seconds=0, window_seconds=300, quantile=0.99,
+                         attribute_fn=_fake_attr, bus=EventBus(), state_dir=str(tmp_path))
+        await p.ingest(_benign() + _attack())   # everything buffered (single batch)
+        assert p.mode == "warmup"
+        await p.tick()                            # time-driven transition
+        assert p.mode == "monitoring"
+        # the attack's discovery + external flow were screened out and correlate immediately
+        assert "inc-c553" in p.incidents and p.incidents["inc-c553"].high_confidence
+
+    asyncio.run(run())

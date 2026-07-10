@@ -70,6 +70,14 @@ class LivePipeline:
         for iid, inc in pairs:
             await self._attribute(iid, inc)
 
+    async def tick(self) -> None:
+        # time-driven backstop: transition when the warmup window elapses even if no
+        # new events arrive (e.g. a short demo that sends a burst then stops).
+        if (self.mode == "warmup" and self._t0 is not None and self.warmup_events
+                and (time.monotonic() - self._t0) >= self.warmup_seconds):
+            for iid, inc in self._fit_and_transition():
+                await self._attribute(iid, inc)
+
     def _fit_and_transition(self) -> list[tuple[str, Incident]]:
         buf = self.warmup_events
         clean, suspicious = screen_warmup(buf)  # poisoning defense #2
