@@ -38,6 +38,13 @@ def status() -> dict:
     return pipeline.status()
 
 
+@router.get("/events/recent")
+def events_recent() -> list[dict]:
+    # newest-last tape of raw telemetry for the command deck's initial render;
+    # afterwards the UI follows the SSE "telemetry" frames.
+    return list(pipeline.fleet.tape)
+
+
 @router.post("/baseline/reset")
 def baseline_reset(_: None = Depends(require_token)) -> dict:
     # the ONLY path back into warmup — a deliberate operator action, not a process restart
