@@ -38,6 +38,9 @@ class IncidentSummary(BaseModel):
     source_count: int
     event_count: int
     start: datetime
+    end: datetime
+    phases: list[str]   # ordered by first occurrence in the timeline
+    sources: list[str]
 
 
 class IncidentDetail(BaseModel):

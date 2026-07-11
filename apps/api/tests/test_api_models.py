@@ -18,7 +18,10 @@ def test_models_construct_and_serialize():
 
     summ = IncidentSummary(id="inc-c553", entity="C553", compound_score=0.94, high_confidence=True,
                            is_true_positive=True, phase_count=3, source_count=3, event_count=3,
-                           start=datetime(2017, 7, 5, 15, 32, 16, tzinfo=timezone.utc))
+                           start=datetime(2017, 7, 5, 15, 32, 16, tzinfo=timezone.utc),
+                           end=datetime(2017, 7, 5, 15, 32, 24, tzinfo=timezone.utc),
+                           phases=["lateral_movement", "discovery", "command_and_control"],
+                           sources=["lanl", "otrf", "cicids"])
     assert summ.high_confidence is True
 
     m = MetricsView(behavioural_recall=0.794, signature_recall=0.0, mttd_seconds=41,

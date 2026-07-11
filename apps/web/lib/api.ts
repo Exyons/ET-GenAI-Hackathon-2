@@ -1,10 +1,47 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+export type EventType = "auth" | "process" | "network_flow";
+
+export type FleetHost = {
+  host: string;
+  os: "linux" | "windows" | "unknown";
+  sources: string[];
+  by_type: Partial<Record<EventType, number>>;
+  total: number;
+  epm: number;
+  last_seen_s: number | null;
+};
+
+export type ThroughputBucket = { t: number; auth: number; process: number; network_flow: number };
+
+export type FleetSnapshot = {
+  hosts: FleetHost[];
+  by_type: Partial<Record<EventType, number>>;
+  series: ThroughputBucket[];
+  rate_epm: number;
+};
+
 export type Status = {
   mode: "warmup" | "monitoring";
   events_seen: number;
   warmup_remaining_s: number;
+  warmup_seconds: number;
   incident_count: number;
+  high_confidence_count: number;
+  flagged_recent: number;
+  baseline_ready: boolean;
+  fleet: FleetSnapshot;
+};
+
+export type TapeEvent = {
+  timestamp: string;
+  event_type: EventType;
+  phase: string;
+  source: string;
+  actor: string | null;
+  detail: string;
+  host: string;
+  flagged: boolean;
 };
 
 export type IncidentSummary = {
@@ -17,6 +54,9 @@ export type IncidentSummary = {
   source_count: number;
   event_count: number;
   start: string;
+  end: string;
+  phases: string[];
+  sources: string[];
 };
 
 export type EventView = {
@@ -62,3 +102,4 @@ export const getMetrics = () => get<Metrics>("/api/metrics");
 export const getIncidents = () => get<IncidentSummary[]>("/api/incidents");
 export const getIncident = (id: string) => get<IncidentDetail>(`/api/incidents/${id}`);
 export const getStatus = () => get<Status>("/api/status");
+export const getRecentEvents = () => get<TapeEvent[]>("/api/events/recent");
