@@ -19,6 +19,7 @@ from prahari.live.baseline import (
     save_baseline,
     screen_warmup,
 )
+from prahari.live.fleet import Fleet
 
 
 class LivePipeline:
@@ -42,6 +43,7 @@ class LivePipeline:
         self.incidents: dict[str, Incident] = {}
         self.attributions: dict = {}
         self._high_conf: set[str] = set()
+        self.fleet = Fleet()
 
         # Poisoning defense #1: a restart never re-learns — load the persisted baseline
         # and start straight in MONITORING. Re-baselining is an explicit operator action.
@@ -57,16 +59,20 @@ class LivePipeline:
     async def ingest(self, events: list) -> None:
         self.events_seen += len(events)
         pairs: list[tuple[str, Incident]] = []
+        tape: list[dict] = []
         if self.mode == "warmup":
             if self._t0 is None:
                 self._t0 = time.monotonic()
             if (time.monotonic() - self._t0) >= self.warmup_seconds and self.warmup_events:
                 pairs += self._fit_and_transition()
-                pairs += self._monitor(events)
+                pairs += self._monitor(events, tape)
             else:
                 self.warmup_events.extend(events)
+                tape += self.fleet.observe(events, [False] * len(events))
         else:
-            pairs += self._monitor(events)
+            pairs += self._monitor(events, tape)
+        if tape:
+            self.bus.publish({"type": "telemetry", "events": tape[-12:]})
         for iid, inc in pairs:
             await self._attribute(iid, inc)
 
@@ -103,10 +109,15 @@ class LivePipeline:
         self.warmup_events = []
         return self._correlate()
 
-    def _monitor(self, events: list) -> list[tuple[str, Incident]]:
+    def _monitor(self, events: list, tape: list[dict] | None = None) -> list[tuple[str, Incident]]:
+        flags = []
         for e in events:
-            if self._is_flagged(e):
+            flagged = self._is_flagged(e)
+            if flagged:
                 self.recent.append(e)
+            flags.append(flagged)
+        if tape is not None:
+            tape += self.fleet.observe(events, flags)
         self._prune()
         return self._correlate()
 
@@ -177,5 +188,10 @@ class LivePipeline:
             "mode": self.mode,
             "events_seen": self.events_seen,
             "warmup_remaining_s": round(remaining, 1),
+            "warmup_seconds": self.warmup_seconds,
             "incident_count": len(self.incidents),
+            "high_confidence_count": len(self._high_conf),
+            "flagged_recent": len(self.recent),
+            "baseline_ready": self.auth_sentinel is not None or self.net_sentinel is not None,
+            "fleet": self.fleet.snapshot(),
         }

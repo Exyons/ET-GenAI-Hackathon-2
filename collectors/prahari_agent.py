@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
-"""Prahari Linux collector — tails auth/process/network telemetry and streams it to
-Prahari's /api/ingest. Stdlib only; run on the monitored VM.
+"""Prahari collector — tails auth/process/network telemetry and streams it to
+Prahari's /api/ingest. Stdlib only; runs on the monitored machine (Linux or Windows).
 
-    PRAHARI_URL=http://prahari:8000 PRAHARI_INGEST_TOKEN=... sudo -E python3 prahari_agent.py
+    Linux:   PRAHARI_URL=http://prahari:8000 PRAHARI_INGEST_TOKEN=... sudo -E python3 prahari_agent.py
+    Windows: set the same env vars, then `python prahari_agent.py` in an admin shell
 """
 from __future__ import annotations
 
 import json
 import os
+import platform
 import queue
 import threading
 import time
 import urllib.error
 import urllib.request
 
-import sources_linux as src
+if platform.system() == "Windows":
+    import sources_windows as src
+else:
+    import sources_linux as src
 
 PRAHARI_URL = os.environ.get("PRAHARI_URL", "http://localhost:8000").rstrip("/")
 TOKEN = os.environ.get("PRAHARI_INGEST_TOKEN", "dev-token")
