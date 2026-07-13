@@ -51,9 +51,11 @@ def _attribution(incident: Incident) -> AttributionView:
     )
 
 
-def to_detail(incident: Incident) -> IncidentDetail:
+def to_detail(incident: Incident, attribution: AttributionView | None = None) -> IncidentDetail:
+    # live incidents pass a computed AttributionView; the demo path passes None and
+    # falls back to the module-global ATTRIBUTIONS lookup.
     return IncidentDetail(
         summary=to_summary(incident),
         timeline=[event_view(e) for e in incident.timeline()],
-        attribution=_attribution(incident),
+        attribution=attribution if attribution is not None else _attribution(incident),
     )
