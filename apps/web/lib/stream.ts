@@ -15,6 +15,7 @@ export function subscribe(
   es.onopen = () => onLink?.(true);
   es.onerror = () => onLink?.(false);
   es.onmessage = (m) => {
+    onLink?.(true); // a frame arriving proves the stream is up even if onopen was missed
     try {
       onEvent(JSON.parse(m.data) as StreamEvent);
     } catch {

@@ -28,7 +28,18 @@ def metrics() -> MetricsView:
 
 
 @router.post("/ingest")
-async def ingest(events: list[CanonicalEvent], _: None = Depends(require_token)) -> dict:
+async def ingest(
+    events: list[CanonicalEvent],
+    _: None = Depends(require_token),
+    x_prahari_host: str = Header(default=""),
+    x_prahari_os: str = Header(default=""),
+    x_prahari_sources: str = Header(default=""),
+) -> dict:
+    # collector heartbeat: an empty batch with these headers keeps the host
+    # visible in the fleet even before any telemetry event fires
+    if x_prahari_host:
+        pipeline.fleet.heartbeat(x_prahari_host, x_prahari_os,
+                                 [s for s in x_prahari_sources.split(",") if s])
     await pipeline.ingest(events)
     return {"accepted": len(events), "mode": pipeline.mode}
 
@@ -63,8 +74,15 @@ async def stream() -> StreamingResponse:
 
 @router.get("/incidents", response_model=list[IncidentSummary])
 def incidents() -> list[IncidentSummary]:
-    source = pipeline.incidents.values() if pipeline.incidents else demo_incidents()
-    summaries = [to_summary(i) for i in source]
+    # live correlated incidents only; the canned scenario lives under /api/demo
+    summaries = [to_summary(i) for i in pipeline.incidents.values()]
+    summaries.sort(key=lambda s: s.compound_score, reverse=True)
+    return summaries
+
+
+@router.get("/demo/incidents", response_model=list[IncidentSummary])
+def demo_incident_list() -> list[IncidentSummary]:
+    summaries = [to_summary(i) for i in demo_incidents()]
     summaries.sort(key=lambda s: s.compound_score, reverse=True)
     return summaries
 

@@ -88,9 +88,21 @@ def test_baseline_reset_requires_token_and_warms_up():
     assert r.status_code == 200 and r.json()["mode"] == "warmup"
 
 
-def test_incidents_demo_when_idle():
-    ids = [i["id"] for i in client.get("/api/incidents").json()]
-    assert "inc-c553" in ids  # falls back to demo scenario
+def test_incidents_live_only_and_demo_route():
+    assert client.get("/api/incidents").json() == []  # no idle fallback on the live route
+    ids = [i["id"] for i in client.get("/api/demo/incidents").json()]
+    assert "inc-c553" in ids  # canned scenario lives under /api/demo
+
+
+def test_heartbeat_registers_host_without_events():
+    r = client.post("/api/ingest", json=[], headers={
+        **TOKEN, "X-Prahari-Host": "cachyos-btw", "X-Prahari-Os": "linux",
+        "X-Prahari-Sources": "linux-auth,linux-conntrack"})
+    assert r.status_code == 200 and r.json()["accepted"] == 0
+    (h,) = client.get("/api/status").json()["fleet"]["hosts"]
+    assert h["host"] == "cachyos-btw" and h["os"] == "linux"
+    assert h["sources"] == ["linux-auth", "linux-conntrack"]
+    assert h["total"] == 0 and h["last_seen_s"] < 5
 
 
 def test_recent_events_tape():

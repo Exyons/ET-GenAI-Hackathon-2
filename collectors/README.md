@@ -12,8 +12,14 @@ Sources → `CanonicalEvent`:
 
 ### Install
 ```bash
-sudo apt-get install -y auditd conntrack     # Debian/Ubuntu
-sudo auditctl -a always,exit -F arch=b64 -S execve   # capture process exec
+# Debian/Ubuntu
+sudo apt-get install -y auditd conntrack
+# Arch / CachyOS / Manjaro
+sudo pacman -S --needed audit conntrack-tools
+sudo systemctl enable --now auditd
+
+# capture process exec (both distros)
+sudo auditctl -a always,exit -F arch=b64 -S execve
 ```
 
 ### Run
@@ -23,7 +29,14 @@ PRAHARI_INGEST_TOKEN=<token> \
 sudo -E python3 prahari_agent.py
 ```
 Env: `PRAHARI_URL`, `PRAHARI_INGEST_TOKEN`, `PRAHARI_SOURCES=auth,process,network`,
-`PRAHARI_BATCH_MAX`, `PRAHARI_FLUSH_SECONDS`. Runs as root (journald audit + conntrack need it).
+`PRAHARI_BATCH_MAX`, `PRAHARI_FLUSH_SECONDS`, `PRAHARI_HEARTBEAT_SECONDS`.
+Runs as root (journald audit + conntrack need it).
+
+The agent heartbeats every 10s, so the machine appears in the dashboard's
+**Sensor fleet** immediately — even before any event fires. A quiet desktop
+generates almost no telemetry; to see events flow, `ssh localhost` (auth),
+run a few commands with auditd active (process), or open outbound
+connections (network).
 
 ### Reaching Prahari from a cloud VM
 Prahari's `/api/ingest` must be reachable from the VM. Either **run Prahari on the VM**, or
