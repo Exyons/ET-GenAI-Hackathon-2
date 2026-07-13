@@ -123,7 +123,10 @@ export function CommandDeck({
         </div>
       )}
       <KpiStrip status={status} apiUp={apiUp} />
-      <Throughput series={status?.fleet?.series ?? []} />
+      <Throughput
+        series={status?.fleet?.series ?? []}
+        hasSensors={(status?.fleet?.hosts?.length ?? 0) > 0}
+      />
       <KillChain events={tape} />
       <div className="cols">
         <IncidentBoard incidents={incidents} variant="live" attributed={attributed} now={now} />

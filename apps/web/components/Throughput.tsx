@@ -20,7 +20,7 @@ function topRoundedRect(x: number, y: number, w: number, h: number, r: number): 
   return `M${x},${y + h} v${-(h - rr)} q0,${-rr} ${rr},${-rr} h${w - 2 * rr} q${rr},0 ${rr},${rr} v${h - rr} z`;
 }
 
-export function Throughput({ series }: { series: ThroughputBucket[] }) {
+export function Throughput({ series, hasSensors }: { series: ThroughputBucket[]; hasSensors: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
 
   const buckets = series.slice(-36);
@@ -77,7 +77,13 @@ export function Throughput({ series }: { series: ThroughputBucket[] }) {
             );
           })}
         </svg>
-        {quiet && <div className="quiet mono">awaiting telemetry — start a collector or the demo feed</div>}
+        {quiet && (
+          <div className="quiet mono">
+            {hasSensors
+              ? "sensors connected · no events in the last 6 min — generate some: ssh localhost, sudo -v, run commands"
+              : "awaiting telemetry — start a collector or the demo feed"}
+          </div>
+        )}
         {hover !== null && buckets[hover] && (
           <div
             className="tip mono"

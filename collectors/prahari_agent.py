@@ -31,19 +31,28 @@ HEARTBEAT_SECONDS = float(os.environ.get("PRAHARI_HEARTBEAT_SECONDS", "10"))
 _TAILERS = {"auth": src.tail_auth, "process": src.tail_process, "network": src.tail_network}
 ACTIVE = [n for n in SOURCES if n in _TAILERS]
 
+# per-source health, shipped with every heartbeat so the dashboard can show
+# exactly what each source is doing (tailing/error + events collected)
+STATUS: dict[str, dict] = {n: {"state": "starting", "detail": "", "n": 0} for n in ACTIVE}
+
 
 def _pump(name, q: queue.Queue) -> None:
+    st = STATUS[name]
     while True:
         try:
+            st.update(state="tailing", detail="")
             for event in _TAILERS[name]():
+                st["n"] += 1
                 q.put(event)
             time.sleep(2)  # tailer exited cleanly (e.g. journald rotated); respawn gently
         except FileNotFoundError as e:
             tool = getattr(e, "filename", None) or e
+            st.update(state="error", detail=f"'{tool}' not installed")
             print(f"[prahari] source {name} needs '{tool}' which is not installed "
                   f"(see collectors/README.md); retrying in 60s", flush=True)
             time.sleep(60)
         except Exception as e:  # a source dies → log, retry
+            st.update(state="error", detail=str(e)[:100])
             print(f"[prahari] source {name} error: {e}; retrying in 5s", flush=True)
             time.sleep(5)
 
@@ -55,7 +64,8 @@ def _post(batch: list[dict]) -> None:
                                           "Authorization": f"Bearer {TOKEN}",
                                           "X-Prahari-Host": src.HOSTNAME,
                                           "X-Prahari-Os": src.OS_NAME,
-                                          "X-Prahari-Sources": ",".join(src.SOURCE_IDS[n] for n in ACTIVE)})
+                                          "X-Prahari-Sources": ",".join(src.SOURCE_IDS[n] for n in ACTIVE),
+                                          "X-Prahari-Source-Status": json.dumps(STATUS)})
     delay = 1.0
     while True:
         try:

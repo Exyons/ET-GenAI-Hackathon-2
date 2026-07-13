@@ -34,12 +34,19 @@ async def ingest(
     x_prahari_host: str = Header(default=""),
     x_prahari_os: str = Header(default=""),
     x_prahari_sources: str = Header(default=""),
+    x_prahari_source_status: str = Header(default=""),
 ) -> dict:
     # collector heartbeat: an empty batch with these headers keeps the host
     # visible in the fleet even before any telemetry event fires
     if x_prahari_host:
+        agent = None
+        if x_prahari_source_status:
+            try:
+                agent = json.loads(x_prahari_source_status)
+            except ValueError:
+                agent = None
         pipeline.fleet.heartbeat(x_prahari_host, x_prahari_os,
-                                 [s for s in x_prahari_sources.split(",") if s])
+                                 [s for s in x_prahari_sources.split(",") if s], agent)
     await pipeline.ingest(events)
     return {"accepted": len(events), "mode": pipeline.mode}
 
