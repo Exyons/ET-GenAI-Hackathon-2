@@ -12,8 +12,14 @@ Sources → `CanonicalEvent`:
 
 ### Install
 ```bash
-sudo apt-get install -y auditd conntrack     # Debian/Ubuntu
-sudo auditctl -a always,exit -F arch=b64 -S execve   # capture process exec
+# Debian/Ubuntu
+sudo apt-get install -y auditd conntrack
+# Arch / CachyOS / Manjaro
+sudo pacman -S --needed audit conntrack-tools
+sudo systemctl enable --now auditd
+
+# capture process exec (both distros)
+sudo auditctl -a always,exit -F arch=b64 -S execve
 ```
 
 ### Run
@@ -23,7 +29,14 @@ PRAHARI_INGEST_TOKEN=<token> \
 sudo -E python3 prahari_agent.py
 ```
 Env: `PRAHARI_URL`, `PRAHARI_INGEST_TOKEN`, `PRAHARI_SOURCES=auth,process,network`,
-`PRAHARI_BATCH_MAX`, `PRAHARI_FLUSH_SECONDS`. Runs as root (journald audit + conntrack need it).
+`PRAHARI_BATCH_MAX`, `PRAHARI_FLUSH_SECONDS`, `PRAHARI_HEARTBEAT_SECONDS`.
+Runs as root (journald audit + conntrack need it).
+
+The agent heartbeats every 10s, so the machine appears in the dashboard's
+**Sensor fleet** immediately — even before any event fires. A quiet desktop
+generates almost no telemetry; to see events flow, `ssh localhost` (auth),
+run a few commands with auditd active (process), or open outbound
+connections (network).
 
 ### Reaching Prahari from a cloud VM
 Prahari's `/api/ingest` must be reachable from the VM. Either **run Prahari on the VM**, or
@@ -32,8 +45,30 @@ random hosts can't POST.
 
 If `auditd` isn't available, run auth + network only: `PRAHARI_SOURCES=auth,network`.
 
-## Windows (L4, follow-on)
-`sources_windows.py` will read Sysmon EventID 1/3 + Security 4624/4625 via `Get-WinEvent`.
+## Windows (`prahari_agent.py`, same script)
+
+Sources → `CanonicalEvent` (polled via `Get-WinEvent` every 3s):
+- **auth** — Security 4624/4625 (logon success/failure; machine + service accounts filtered).
+- **process** — Sysmon EventID 1 (process create); falls back to Security 4688 if Sysmon
+  isn't installed (enable *Audit Process Creation* policy for 4688).
+- **network** — Sysmon EventID 3 (network connection). Needs Sysmon.
+
+### Install (optional but recommended: Sysmon)
+```powershell
+# in an elevated PowerShell
+Invoke-WebRequest https://download.sysinternals.com/files/Sysmon.zip -OutFile Sysmon.zip
+Expand-Archive Sysmon.zip; .\Sysmon\Sysmon64.exe -accepteula -i
+```
+
+### Run
+```powershell
+# elevated PowerShell (reading the Security log requires admin)
+$env:PRAHARI_URL = "http://<prahari-host>:8000"
+$env:PRAHARI_INGEST_TOKEN = "<token>"
+python prahari_agent.py
+```
+Without Sysmon, run auth-only or auth+process(4688): `$env:PRAHARI_SOURCES = "auth,process"`.
+The agent picks `sources_windows.py` automatically via `platform.system()`.
 
 ## Tests
 ```bash

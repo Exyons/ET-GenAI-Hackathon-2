@@ -11,6 +11,8 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 
 HOSTNAME = socket.gethostname()
+OS_NAME = "linux"
+SOURCE_IDS = {"auth": "linux-auth", "process": "linux-audit", "network": "linux-conntrack"}
 
 _INTERNAL = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
              "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",

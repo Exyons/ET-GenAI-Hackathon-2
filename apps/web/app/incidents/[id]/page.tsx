@@ -9,6 +9,13 @@ const SOURCE_LABEL: Record<string, string> = {
   lanl: "Auth · LANL",
   otrf: "Process · Sysmon",
   cicids: "Network · NetFlow",
+  "linux-auth": "Auth · sshd",
+  "linux-audit": "Process · auditd",
+  "linux-conntrack": "Network · conntrack",
+  "windows-security": "Auth · Security log",
+  "windows-sysmon": "Sysmon",
+  sysmon: "Process · Sysmon",
+  conntrack: "Network · conntrack",
 };
 
 function clock(iso: string): string {

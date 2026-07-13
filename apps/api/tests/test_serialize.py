@@ -14,6 +14,9 @@ def test_summary_fields():
     assert s.source_count == 3
     assert s.phase_count == 3
     assert s.compound_score > 0.8
+    assert s.phases[0] == "lateral_movement"      # timeline order, not alphabetical
+    assert len(s.phases) == 3 and len(s.sources) == 3
+    assert s.end >= s.start
 
 
 def test_detail_timeline_and_attribution():
