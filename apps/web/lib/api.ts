@@ -2,6 +2,12 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:80
 
 export type EventType = "auth" | "process" | "network_flow";
 
+export type AgentSourceStatus = {
+  state: "starting" | "tailing" | "error" | string;
+  detail: string;
+  n: number;
+};
+
 export type FleetHost = {
   host: string;
   os: "linux" | "windows" | "unknown";
@@ -10,6 +16,7 @@ export type FleetHost = {
   total: number;
   epm: number;
   last_seen_s: number | null;
+  agent?: Record<string, AgentSourceStatus> | null;
 };
 
 export type ThroughputBucket = { t: number; auth: number; process: number; network_flow: number };
