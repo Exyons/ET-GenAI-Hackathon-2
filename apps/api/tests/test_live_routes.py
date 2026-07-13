@@ -97,12 +97,16 @@ def test_incidents_live_only_and_demo_route():
 def test_heartbeat_registers_host_without_events():
     r = client.post("/api/ingest", json=[], headers={
         **TOKEN, "X-Prahari-Host": "cachyos-btw", "X-Prahari-Os": "linux",
-        "X-Prahari-Sources": "linux-auth,linux-conntrack"})
+        "X-Prahari-Sources": "linux-auth,linux-conntrack",
+        "X-Prahari-Source-Status": '{"auth": {"state": "tailing", "detail": "", "n": 0}, '
+                                   '"network": {"state": "error", "detail": "\'conntrack\' not installed", "n": 0}}'})
     assert r.status_code == 200 and r.json()["accepted"] == 0
     (h,) = client.get("/api/status").json()["fleet"]["hosts"]
     assert h["host"] == "cachyos-btw" and h["os"] == "linux"
     assert h["sources"] == ["linux-auth", "linux-conntrack"]
     assert h["total"] == 0 and h["last_seen_s"] < 5
+    assert h["agent"]["auth"]["state"] == "tailing"
+    assert "conntrack" in h["agent"]["network"]["detail"]
 
 
 def test_recent_events_tape():

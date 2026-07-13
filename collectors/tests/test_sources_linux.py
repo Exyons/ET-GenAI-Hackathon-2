@@ -3,7 +3,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sources_linux import is_internal, map_audit_execve, map_auth, map_conntrack
+from sources_linux import (
+    is_internal, map_audit_execve, map_auth, map_conntrack, map_proc, map_sudo,
+)
 
 TS = "2026-07-08T12:00:00+00:00"
 
@@ -40,6 +42,32 @@ def test_map_conntrack_new_outbound():
     assert d["event_type"] == "network_flow" and d["source"] == "linux-conntrack"
     assert d["dst_ip"] == "52.84.23.17" and d["src_host"] == "vm1"
     assert d["src_internal"] is True
+
+
+def test_map_sudo_command_is_privileged_exec():
+    msg = "   alice : TTY=pts/1 ; PWD=/home/alice ; USER=root ; COMMAND=/usr/bin/pacman -Syu"
+    d = map_sudo(msg, TS, "vm1")
+    assert d["event_type"] == "process" and d["source"] == "linux-sudo"
+    assert d["source_entity"] == "alice" and d["dest_entity"] == "/usr/bin/pacman -Syu"
+
+
+def test_map_sudo_auth_failure():
+    msg = ("pam_unix(sudo:auth): authentication failure; logname=alice uid=1000 "
+           "euid=0 tty=/dev/pts/1 ruser=alice rhost=  user=alice")
+    d = map_sudo(msg, TS, "vm1")
+    assert d["event_type"] == "auth" and d["outcome"] == "failure"
+    assert d["source_entity"] == "alice" and d["auth_type"] == "sudo"
+
+
+def test_map_sudo_ignores_noise():
+    assert map_sudo("pam_unix(sudo:session): session closed for user root", TS, "vm1") is None
+
+
+def test_map_proc():
+    d = map_proc("4242", "curl http://52.84.23.17/x.sh", "alice", TS, "vm1")
+    assert d["event_type"] == "process" and d["source"] == "linux-proc"
+    assert d["dest_entity"] == "curl http://52.84.23.17/x.sh"
+    assert d["source_entity"] == "alice" and "4242" in d["raw"]
 
 
 def test_is_internal():

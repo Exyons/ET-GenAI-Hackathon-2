@@ -1,5 +1,13 @@
-import type { FleetHost } from "../lib/api";
+import type { AgentSourceStatus, FleetHost } from "../lib/api";
 import { shortSource } from "../lib/format";
+
+const SOURCE_ORDER = ["auth", "process", "network"];
+
+function agentEntries(agent: Record<string, AgentSourceStatus>): [string, AgentSourceStatus][] {
+  return Object.entries(agent).sort(
+    ([a], [b]) => SOURCE_ORDER.indexOf(a) - SOURCE_ORDER.indexOf(b),
+  );
+}
 
 const OS_TAG: Record<FleetHost["os"], string> = { linux: "LNX", windows: "WIN", unknown: "—" };
 
@@ -46,10 +54,19 @@ export function FleetPanel({ hosts }: { hosts: FleetHost[] }) {
                     <span className={`os ${h.os}`}>{OS_TAG[h.os]}</span>
                   </div>
                   <div className="srcs">
-                    {h.sources.map((s) => (
-                      <span key={s} className="src mono">{shortSource(s)}</span>
-                    ))}
+                    {h.agent
+                      ? agentEntries(h.agent).map(([name, s]) => (
+                          <span key={name} className={`src mono st-${s.state}`} title={s.detail || s.state}>
+                            {name.toUpperCase()} {s.state === "error" ? "✕" : s.n}
+                          </span>
+                        ))
+                      : h.sources.map((s) => (
+                          <span key={s} className="src mono">{shortSource(s)}</span>
+                        ))}
                   </div>
+                  {h.agent && agentEntries(h.agent).filter(([, s]) => s.state === "error").map(([name, s]) => (
+                    <div key={name} className="srcerr mono">{name}: {s.detail || "error"}</div>
+                  ))}
                 </div>
                 <div className="mix mono" title="auth · process · network events">
                   <span><i className="swatch s-auth" />{h.by_type.auth ?? 0}</span>
