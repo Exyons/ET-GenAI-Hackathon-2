@@ -18,6 +18,8 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 
 HOSTNAME = socket.gethostname()
+OS_NAME = "windows"
+SOURCE_IDS = {"auth": "windows-security", "process": "windows-sysmon", "network": "windows-sysmon"}
 POLL_SECONDS = 3.0
 
 _INTERNAL = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",

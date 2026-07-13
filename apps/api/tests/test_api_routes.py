@@ -13,7 +13,7 @@ def test_metrics_endpoint():
 
 
 def test_incidents_list_sorted_and_c553_present():
-    r = client.get("/api/incidents")
+    r = client.get("/api/demo/incidents")
     assert r.status_code == 200
     data = r.json()
     ids = [i["id"] for i in data]

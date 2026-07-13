@@ -52,28 +52,29 @@ function Row({ i, attributed, now }: { i: IncidentSummary; attributed: boolean; 
   );
 }
 
+const EMPTY = new Set<string>();
+
 export function IncidentBoard({
-  incidents, liveCount, attributed, now,
+  incidents, variant, attributed = EMPTY, now = null,
 }: {
   incidents: IncidentSummary[];
-  liveCount: number | null;
-  attributed: Set<string>;
-  now: number | null;
+  variant: "live" | "demo";
+  attributed?: Set<string>;
+  now?: number | null;
 }) {
-  const live = (liveCount ?? 0) > 0;
   return (
     <section className="panel incpanel">
       <h2>
         Active incidents <span className="hint">— ranked by compound risk</span>
         <span className="spacer" />
-        {liveCount !== null && (
-          <span className={`pill ${live ? "livepill" : "demo"}`}>
-            {live ? "LIVE CORRELATION" : "SCENARIO REPLAY · idle"}
-          </span>
-        )}
+        {variant === "demo"
+          ? <span className="pill demo">SCENARIO REPLAY</span>
+          : incidents.length > 0 && <span className="pill livepill">LIVE CORRELATION</span>}
       </h2>
       {incidents.length === 0 ? (
-        <div className="empty"><p className="mono dim">no incidents — correlation quiet</p></div>
+        <div className="empty">
+          <p className="mono dim">no incidents — correlation quiet, monitoring live telemetry</p>
+        </div>
       ) : (
         <div className="inc-list">
           {incidents.map((i) => (

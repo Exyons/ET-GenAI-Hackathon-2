@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export type LinkState = "live" | "degraded" | "down" | "unknown";
@@ -36,6 +37,7 @@ export function TopBar({ mode, link }: { mode?: "warmup" | "monitoring" | null; 
         </span>
       )}
       {link !== undefined && <span className={`chip link ${link}`}>{LINK_LABEL[link]}</span>}
+      {mode !== undefined && <Link href="/demo" className="chip navlink">DEMO ▸</Link>}
       <span className="chip utc mono">{utc ?? "--:--:--"} UTC</span>
     </header>
   );

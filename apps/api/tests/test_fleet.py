@@ -52,6 +52,21 @@ def test_rate_and_last_seen_age_with_clock():
     assert snap["rate_epm"] == 0  # bucket aged out of the last-minute window
 
 
+def test_heartbeat_before_any_event():
+    clock = [1000.0]
+    f = Fleet(clock=lambda: clock[0])
+    f.heartbeat("cachyos-btw", "linux", ["linux-auth", "linux-conntrack"])
+    clock[0] = 1004.0
+    snap = f.snapshot()
+    (h,) = snap["hosts"]
+    assert h["host"] == "cachyos-btw" and h["os"] == "linux"
+    assert h["total"] == 0 and h["epm"] == 0 and h["last_seen_s"] == 4.0
+    # a later event refreshes the beat and keeps heartbeat-declared sources
+    f.observe([_ev("auth", "linux-auth", dst_host="cachyos-btw")], [False])
+    (h2,) = f.snapshot()["hosts"]
+    assert h2["last_seen_s"] == 0.0 and h2["total"] == 1
+
+
 def test_old_buckets_pruned():
     clock = [1000.0]
     f = Fleet(clock=lambda: clock[0])

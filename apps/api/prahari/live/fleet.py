@@ -32,6 +32,22 @@ class Fleet:
         self._buckets: dict[int, Counter] = {}
         self.tape: deque = deque(maxlen=TAPE_SIZE)
 
+    def _host(self, name: str, now: float) -> dict:
+        return self.hosts.setdefault(name, {
+            "os": "unknown", "sources": set(), "by_type": Counter(),
+            "seen": deque(maxlen=2000), "beat": now,
+        })
+
+    def heartbeat(self, host: str, os_name: str = "", sources: list[str] | None = None) -> None:
+        """Collector keepalive: the machine shows in the fleet before (and between)
+        events, with the sources its agent is tailing."""
+        now = self._clock()
+        h = self._host(host, now)
+        h["beat"] = now
+        if h["os"] == "unknown" and os_name in ("linux", "windows"):
+            h["os"] = os_name
+        h["sources"].update(sources or [])
+
     def observe(self, events: list[CanonicalEvent], flags: list[bool]) -> list[dict]:
         """Record one ingest batch; returns the tape entries it produced."""
         now = self._clock()
@@ -40,10 +56,8 @@ class Fleet:
         added: list[dict] = []
         for e, flagged in zip(events, flags):
             host = target_of(e) or e.src_host or "unknown"
-            h = self.hosts.setdefault(host, {
-                "os": "unknown", "sources": set(), "by_type": Counter(),
-                "seen": deque(maxlen=2000),
-            })
+            h = self._host(host, now)
+            h["beat"] = now
             if h["os"] == "unknown":
                 h["os"] = host_os(e.source)
             h["sources"].add(e.source)
@@ -78,9 +92,9 @@ class Fleet:
                 "host": name, "os": h["os"], "sources": sorted(h["sources"]),
                 "by_type": dict(h["by_type"]), "total": sum(h["by_type"].values()),
                 "epm": epm,
-                "last_seen_s": round(now - h["seen"][-1], 1) if h["seen"] else None,
+                "last_seen_s": round(now - h["beat"], 1),
             })
-        hosts.sort(key=lambda x: (x["last_seen_s"] is None, x["last_seen_s"]))
+        hosts.sort(key=lambda x: x["last_seen_s"])
         last_minute = sum(b["auth"] + b["process"] + b["network_flow"] for b in series[-6:])
         return {"hosts": hosts, "by_type": dict(self.by_type),
                 "series": series, "rate_epm": last_minute}
