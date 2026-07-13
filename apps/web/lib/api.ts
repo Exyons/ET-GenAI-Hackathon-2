@@ -1,4 +1,11 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+export type Status = {
+  mode: "warmup" | "monitoring";
+  events_seen: number;
+  warmup_remaining_s: number;
+  incident_count: number;
+};
 
 export type IncidentSummary = {
   id: string;
@@ -54,3 +61,4 @@ async function get<T>(path: string): Promise<T> {
 export const getMetrics = () => get<Metrics>("/api/metrics");
 export const getIncidents = () => get<IncidentSummary[]>("/api/incidents");
 export const getIncident = (id: string) => get<IncidentDetail>(`/api/incidents/${id}`);
+export const getStatus = () => get<Status>("/api/status");
