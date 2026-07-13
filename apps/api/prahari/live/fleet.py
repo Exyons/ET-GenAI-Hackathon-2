@@ -38,15 +38,18 @@ class Fleet:
             "seen": deque(maxlen=2000), "beat": now,
         })
 
-    def heartbeat(self, host: str, os_name: str = "", sources: list[str] | None = None) -> None:
+    def heartbeat(self, host: str, os_name: str = "", sources: list[str] | None = None,
+                  agent: dict | None = None) -> None:
         """Collector keepalive: the machine shows in the fleet before (and between)
-        events, with the sources its agent is tailing."""
+        events, with the sources its agent is tailing and their per-source health."""
         now = self._clock()
         h = self._host(host, now)
         h["beat"] = now
         if h["os"] == "unknown" and os_name in ("linux", "windows"):
             h["os"] = os_name
         h["sources"].update(sources or [])
+        if agent is not None:
+            h["agent"] = agent
 
     def observe(self, events: list[CanonicalEvent], flags: list[bool]) -> list[dict]:
         """Record one ingest batch; returns the tape entries it produced."""
@@ -93,6 +96,7 @@ class Fleet:
                 "by_type": dict(h["by_type"]), "total": sum(h["by_type"].values()),
                 "epm": epm,
                 "last_seen_s": round(now - h["beat"], 1),
+                "agent": h.get("agent"),
             })
         hosts.sort(key=lambda x: x["last_seen_s"])
         last_minute = sum(b["auth"] + b["process"] + b["network_flow"] for b in series[-6:])

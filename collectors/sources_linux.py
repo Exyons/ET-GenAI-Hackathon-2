@@ -4,9 +4,12 @@ no pip install). The mappers are pure/testable; the *_tail generators wrap subpr
 from __future__ import annotations
 
 import json
+import os
+import pwd
 import re
 import socket
 import subprocess
+import time
 from collections.abc import Iterator
 from datetime import datetime, timezone
 
@@ -29,9 +32,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ---- auth (sshd via journalctl / auth.log) ----
+# ---- auth (sshd + sudo via journalctl) ----
 _ACCEPT = re.compile(r"Accepted (\w+) for (?:invalid user )?(\S+) from (\S+)")
 _FAIL = re.compile(r"Failed (\w+) for (?:invalid user )?(\S+) from (\S+)")
+_SUDO_FAIL = re.compile(r"pam_unix\(sudo:auth\): authentication failure;.*\buser=(\S+)")
+_SUDO_CMD = re.compile(r"^\s*(\S+) : .*\bCOMMAND=(.+)$")
 
 
 def map_auth(msg: str, ts: str, hostname: str = HOSTNAME) -> dict | None:
@@ -42,6 +47,21 @@ def map_auth(msg: str, ts: str, hostname: str = HOSTNAME) -> dict | None:
             return {"timestamp": ts, "event_type": "auth", "source": "linux-auth",
                     "source_entity": user, "src_host": hostname, "dst_host": hostname,
                     "src_ip": ip, "outcome": outcome, "auth_type": method, "raw": msg}
+    return None
+
+
+def map_sudo(msg: str, ts: str, hostname: str = HOSTNAME) -> dict | None:
+    m = _SUDO_FAIL.search(msg)
+    if m:
+        return {"timestamp": ts, "event_type": "auth", "source": "linux-auth",
+                "source_entity": m.group(1), "src_host": hostname, "dst_host": hostname,
+                "outcome": "failure", "auth_type": "sudo", "raw": msg}
+    m = _SUDO_CMD.match(msg)
+    if m:  # privileged exec — a desktop's most telling process telemetry
+        user, cmd = m.groups()
+        return {"timestamp": ts, "event_type": "process", "source": "linux-sudo",
+                "source_entity": user, "src_host": hostname,
+                "dest_entity": cmd.strip(), "raw": msg}
     return None
 
 
@@ -84,21 +104,69 @@ def _lines(cmd: list[str]) -> Iterator[str]:
 
 
 def tail_auth() -> Iterator[dict]:
-    for line in _lines(["journalctl", "-f", "-o", "json", "-n", "0", "-u", "ssh", "-u", "sshd"]):
+    # sshd logins + sudo (auth failures and privileged COMMAND= execs)
+    cmd = ["journalctl", "-f", "-o", "json", "-n", "0",
+           "-u", "ssh", "-u", "sshd", "+", "_COMM=sudo"]
+    for line in _lines(cmd):
         try:
             rec = json.loads(line)
         except ValueError:
             continue
-        d = map_auth(rec.get("MESSAGE", ""), _now(), rec.get("_HOSTNAME", HOSTNAME))
+        msg = rec.get("MESSAGE", "")
+        host = rec.get("_HOSTNAME", HOSTNAME)
+        d = map_auth(msg, _now(), host) or map_sudo(msg, _now(), host)
         if d:
             yield d
+
+
+def map_proc(pid: str, cmdline: str, user: str, ts: str, hostname: str = HOSTNAME) -> dict:
+    return {"timestamp": ts, "event_type": "process", "source": "linux-proc",
+            "source_entity": user, "src_host": hostname, "dest_entity": cmdline,
+            "raw": f"pid={pid} {cmdline}"}
+
+
+def _proc_user(pid: str) -> str:
+    try:
+        return pwd.getpwuid(os.stat(f"/proc/{pid}").st_uid).pw_name
+    except (OSError, KeyError):
+        return "?"
+
+
+def _scan_proc(poll: float = 0.5) -> Iterator[dict]:
+    """No auditd → poll /proc for new processes. Zero setup; misses very
+    short-lived commands but catches normal desktop/server activity."""
+    prev = {p for p in os.listdir("/proc") if p.isdigit()}
+    while True:
+        time.sleep(poll)
+        cur = {p for p in os.listdir("/proc") if p.isdigit()}
+        for pid in sorted(cur - prev, key=int):
+            try:
+                with open(f"/proc/{pid}/cmdline", "rb") as f:
+                    cmd = f.read().replace(b"\x00", b" ").decode(errors="replace").strip()
+            except OSError:
+                continue  # process already gone
+            if cmd:
+                yield map_proc(pid, cmd, _proc_user(pid), _now())
+        prev = cur
+
+
+def _audit_available() -> bool:
+    try:
+        out = subprocess.run(["journalctl", "-o", "cat", "-n", "1", "_TRANSPORT=audit"],
+                             capture_output=True, text=True, timeout=10)
+        return bool(out.stdout.strip())
+    except Exception:
+        return False
 
 
 def tail_process() -> Iterator[dict]:
-    for line in _lines(["journalctl", "-f", "-o", "cat", "-n", "0", "_TRANSPORT=audit"]):
-        d = map_audit_execve(line, _now())
-        if d:
-            yield d
+    if _audit_available():
+        for line in _lines(["journalctl", "-f", "-o", "cat", "-n", "0", "_TRANSPORT=audit"]):
+            d = map_audit_execve(line, _now())
+            if d:
+                yield d
+    else:
+        yield from _scan_proc()
 
 
 def tail_network() -> Iterator[dict]:
