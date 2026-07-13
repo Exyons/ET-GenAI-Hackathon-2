@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from prahari.api.models import AttributionView, TechniqueView
 from prahari.live import state
+from prahari.live.fleet import Fleet
 from prahari.main import app
 from prahari.schema import CanonicalEvent
 
@@ -62,6 +63,7 @@ def reset_pipeline(tmp_path):
     p._high_conf.clear()
     p.auth_sentinel = p.net_sentinel = None
     p.auth_threshold = p.net_threshold = None
+    p.fleet = Fleet()
     yield
 
 
@@ -74,7 +76,10 @@ def test_status_shape():
     r = client.get("/api/status")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"mode", "events_seen", "warmup_remaining_s", "incident_count"}
+    assert set(body) == {"mode", "events_seen", "warmup_remaining_s", "warmup_seconds",
+                         "incident_count", "high_confidence_count", "flagged_recent",
+                         "baseline_ready", "fleet"}
+    assert set(body["fleet"]) == {"hosts", "by_type", "series", "rate_epm"}
 
 
 def test_baseline_reset_requires_token_and_warms_up():
@@ -83,9 +88,30 @@ def test_baseline_reset_requires_token_and_warms_up():
     assert r.status_code == 200 and r.json()["mode"] == "warmup"
 
 
-def test_incidents_demo_when_idle():
-    ids = [i["id"] for i in client.get("/api/incidents").json()]
-    assert "inc-c553" in ids  # falls back to demo scenario
+def test_incidents_live_only_and_demo_route():
+    assert client.get("/api/incidents").json() == []  # no idle fallback on the live route
+    ids = [i["id"] for i in client.get("/api/demo/incidents").json()]
+    assert "inc-c553" in ids  # canned scenario lives under /api/demo
+
+
+def test_heartbeat_registers_host_without_events():
+    r = client.post("/api/ingest", json=[], headers={
+        **TOKEN, "X-Prahari-Host": "cachyos-btw", "X-Prahari-Os": "linux",
+        "X-Prahari-Sources": "linux-auth,linux-conntrack"})
+    assert r.status_code == 200 and r.json()["accepted"] == 0
+    (h,) = client.get("/api/status").json()["fleet"]["hosts"]
+    assert h["host"] == "cachyos-btw" and h["os"] == "linux"
+    assert h["sources"] == ["linux-auth", "linux-conntrack"]
+    assert h["total"] == 0 and h["last_seen_s"] < 5
+
+
+def test_recent_events_tape():
+    assert client.get("/api/events/recent").json() == []
+    client.post("/api/ingest", json=_json(_benign()), headers=TOKEN)
+    tape = client.get("/api/events/recent").json()
+    assert len(tape) == 18
+    assert {"timestamp", "event_type", "phase", "source", "actor", "detail",
+            "host", "flagged"} <= set(tape[0])
 
 
 def test_live_incident_after_attack():

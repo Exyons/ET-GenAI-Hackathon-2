@@ -29,12 +29,20 @@ def event_view(e: CanonicalEvent) -> EventView:
 
 
 def to_summary(incident: Incident) -> IncidentSummary:
+    phases: list[str] = []
+    sources: list[str] = []
+    for e in incident.timeline():
+        p = killchain_phase(e)
+        if p not in phases:
+            phases.append(p)
+        if e.source not in sources:
+            sources.append(e.source)
     return IncidentSummary(
         id=incident_id(incident), entity=incident.entity,
         compound_score=incident.compound_score, high_confidence=incident.high_confidence,
         is_true_positive=incident.is_true_positive, phase_count=len(incident.phases),
         source_count=len(incident.sources), event_count=len(incident.events),
-        start=incident.start,
+        start=incident.start, end=incident.end, phases=phases, sources=sources,
     )
 
 
