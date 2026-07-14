@@ -17,8 +17,8 @@ import { Throughput } from "./Throughput";
 
 const TAPE_MAX = 200;
 
-function Kpi({ label, value, sub, tone, href }: {
-  label: string; value: string; sub?: React.ReactNode; tone?: string; href?: string;
+function Kpi({ label, value, sub, tone, href, onClick }: {
+  label: string; value: string; sub?: React.ReactNode; tone?: string; href?: string; onClick?: () => void;
 }) {
   const body = (
     <>
@@ -28,12 +28,14 @@ function Kpi({ label, value, sub, tone, href }: {
     </>
   );
   const cls = `kpi${tone ? ` ${tone}` : ""}`;
-  return href
-    ? <Link href={href} className={`${cls} drill`}>{body}</Link>
-    : <div className={cls}>{body}</div>;
+  if (href) return <Link href={href} className={`${cls} drill`}>{body}</Link>;
+  if (onClick) return <button type="button" className={`${cls} drill`} onClick={onClick}>{body}</button>;
+  return <div className={cls}>{body}</div>;
 }
 
-function KpiStrip({ status, apiUp }: { status: Status | null; apiUp: boolean }) {
+function KpiStrip({ status, apiUp, onFocusBoard }: {
+  status: Status | null; apiUp: boolean; onFocusBoard: (f: "all" | "high") => void;
+}) {
   const fleet = status?.fleet ?? null;
   const online = fleet ? fleet.hosts.filter((h) => h.last_seen_s !== null && h.last_seen_s < 15).length : 0;
   const warmup = status?.mode === "warmup";
@@ -56,9 +58,11 @@ function KpiStrip({ status, apiUp }: { status: Status | null; apiUp: boolean }) 
       <Kpi label="Sensors" value={fleet ? `${online}/${fleet.hosts.length}` : "0/0"} sub="reporting < 15s" />
       <Kpi label="Flagged" value={String(status?.flagged_recent ?? 0)} sub="in correlation window"
         tone={(status?.flagged_recent ?? 0) > 0 ? "warm" : undefined} href="/telemetry?view=flagged" />
-      <Kpi label="Incidents" value={String(status?.incident_count ?? 0)} sub="live correlated" href="#incidents" />
+      <Kpi label="Incidents" value={String(status?.incident_count ?? 0)} sub="live correlated"
+        onClick={() => onFocusBoard("all")} />
       <Kpi label="High conf" value={String(status?.high_confidence_count ?? 0)} sub="multi-source · multi-phase"
-        tone={(status?.high_confidence_count ?? 0) > 0 ? "bad" : undefined} href="#incidents" />
+        tone={(status?.high_confidence_count ?? 0) > 0 ? "bad" : undefined}
+        onClick={() => onFocusBoard("high")} />
     </section>
   );
 }
@@ -77,10 +81,22 @@ export function CommandDeck({
   const [apiUp, setApiUp] = useState<boolean>(initialStatus !== null);
   const [sseUp, setSseUp] = useState<boolean | null>(null);
   const [now, setNow] = useState<number | null>(null);
+  const [boardFilter, setBoardFilter] = useState<"all" | "high">("all");
+  const [boardFlash, setBoardFlash] = useState(false);
   const apiUpRef = useRef(apiUp);
   apiUpRef.current = apiUp;
   const sseUpRef = useRef(sseUp);
   sseUpRef.current = sseUp;
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const focusBoard = (filter: "all" | "high") => {
+    setBoardFilter(filter);
+    document.getElementById("incidents")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setBoardFlash(false); // restart the flash animation even on repeat clicks
+    requestAnimationFrame(() => setBoardFlash(true));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setBoardFlash(false), 1600);
+  };
 
   useEffect(() => {
     const unsub = subscribe((e) => {
@@ -129,14 +145,17 @@ export function CommandDeck({
           ▲ backend unreachable — <span className="cmd">cd apps/api &amp;&amp; uv run uvicorn prahari.main:app --port 8000</span> · retrying…
         </div>
       )}
-      <KpiStrip status={status} apiUp={apiUp} />
+      <KpiStrip status={status} apiUp={apiUp} onFocusBoard={focusBoard} />
       <Throughput
         series={status?.fleet?.series ?? []}
         hasSensors={(status?.fleet?.hosts?.length ?? 0) > 0}
       />
       <KillChain events={tape} />
       <div className="cols">
-        <IncidentBoard incidents={incidents} variant="live" attributed={attributed} now={now} />
+        <IncidentBoard
+          incidents={incidents} variant="live" attributed={attributed} now={now}
+          filter={boardFilter} onClearFilter={() => setBoardFilter("all")} flash={boardFlash}
+        />
         <div className="side">
           <FleetPanel hosts={status?.fleet?.hosts ?? []} tape={tape} />
         </div>
