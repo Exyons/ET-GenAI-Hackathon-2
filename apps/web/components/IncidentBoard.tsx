@@ -55,29 +55,42 @@ function Row({ i, attributed, now }: { i: IncidentSummary; attributed: boolean; 
 const EMPTY = new Set<string>();
 
 export function IncidentBoard({
-  incidents, variant, attributed = EMPTY, now = null,
+  incidents, variant, attributed = EMPTY, now = null, filter = "all", onClearFilter, flash = false,
 }: {
   incidents: IncidentSummary[];
   variant: "live" | "demo";
   attributed?: Set<string>;
   now?: number | null;
+  filter?: "all" | "high";
+  onClearFilter?: () => void;
+  flash?: boolean;
 }) {
+  const shown = filter === "high" ? incidents.filter((i) => i.high_confidence) : incidents;
   return (
-    <section className="panel incpanel" id="incidents">
+    <section className={`panel incpanel${flash ? " flash" : ""}`} id="incidents">
       <h2>
         Active incidents <span className="hint">— ranked by compound risk</span>
         <span className="spacer" />
+        {filter === "high" && (
+          <button type="button" className="pill hi clearable" onClick={onClearFilter}>
+            HIGH-CONFIDENCE ONLY ✕
+          </button>
+        )}
         {variant === "demo"
           ? <span className="pill demo">SCENARIO REPLAY</span>
           : incidents.length > 0 && <span className="pill livepill">LIVE CORRELATION</span>}
       </h2>
-      {incidents.length === 0 ? (
+      {shown.length === 0 ? (
         <div className="empty">
-          <p className="mono dim">no incidents — correlation quiet, monitoring live telemetry</p>
+          <p className="mono dim">
+            {filter === "high" && incidents.length > 0
+              ? "no high-confidence incidents — clear the filter to see watch-level ones"
+              : "no incidents — correlation quiet, monitoring live telemetry"}
+          </p>
         </div>
       ) : (
         <div className="inc-list">
-          {incidents.map((i) => (
+          {shown.map((i) => (
             <Row key={i.id} i={i} attributed={attributed.has(i.id)} now={now} />
           ))}
         </div>
