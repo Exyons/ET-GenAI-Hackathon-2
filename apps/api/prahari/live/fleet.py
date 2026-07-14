@@ -9,7 +9,7 @@ from prahari.schema import CanonicalEvent
 
 BUCKET_SECONDS = 10
 BUCKET_SPAN = 36           # 6 minutes of throughput history
-TAPE_SIZE = 80
+TAPE_SIZE = 400
 RATE_WINDOW_S = 60.0
 
 
