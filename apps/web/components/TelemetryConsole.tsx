@@ -3,25 +3,47 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { getFlaggedEvents, getRecentEvents, type EventType, type TapeEvent } from "../lib/api";
+import {
+  getFlaggedEvents, getIncidentEvents, getRecentEvents,
+  type EventType, type TapeEvent,
+} from "../lib/api";
 import { subscribe } from "../lib/stream";
 import { TapeList } from "./TapeList";
 import { TopBar } from "./TopBar";
 
-export type TelemetryView = "recent" | "flagged";
+export type TelemetryView = "recent" | "flagged" | "incidents" | "high";
 const RECENT_MAX = 400;
+
+const TABS: { key: TelemetryView; label: string }[] = [
+  { key: "recent", label: "RECENT" },
+  { key: "flagged", label: "⚑ FLAGGED" },
+  { key: "incidents", label: "INCIDENTS" },
+  { key: "high", label: "HIGH CONF" },
+];
+
+const VIEW_HINT: Record<TelemetryView, string> = {
+  recent: "raw tape",
+  flagged: "sentinel-flagged in correlation window",
+  incidents: "events inside correlated incidents",
+  high: "events inside high-confidence incidents",
+};
 
 export function TelemetryConsole({ initialView }: { initialView: TelemetryView }) {
   const [view, setView] = useState<TelemetryView>(initialView);
   const [recent, setRecent] = useState<TapeEvent[]>([]);
   const [flagged, setFlagged] = useState<TapeEvent[]>([]);
+  const [incEvents, setIncEvents] = useState<TapeEvent[]>([]);
+  const [highEvents, setHighEvents] = useState<TapeEvent[]>([]);
   const [host, setHost] = useState("all");
   const [type, setType] = useState<"all" | EventType>("all");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     const load = () => {
       getRecentEvents(RECENT_MAX).then((t) => setRecent([...t].reverse())).catch(() => {});
       getFlaggedEvents().then((t) => setFlagged([...t].reverse())).catch(() => {});
+      getIncidentEvents(false).then((t) => setIncEvents([...t].reverse())).catch(() => {});
+      getIncidentEvents(true).then((t) => setHighEvents([...t].reverse())).catch(() => {});
     };
     load();
     const unsub = subscribe((e) => {
@@ -29,14 +51,20 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
         setRecent((prev) => [...e.events.slice().reverse(), ...prev].slice(0, RECENT_MAX));
       }
     });
-    const t = setInterval(load, 5000); // re-sync (window pruning, missed frames)
+    const t = setInterval(load, 5000); // re-sync (window pruning, incident growth)
     return () => { unsub(); clearInterval(t); };
   }, []);
 
-  const source = view === "recent" ? recent : flagged;
+  const source =
+    view === "recent" ? recent : view === "flagged" ? flagged : view === "incidents" ? incEvents : highEvents;
   const hosts = useMemo(() => [...new Set(recent.map((e) => e.host))].sort(), [recent]);
-  const shown = source.filter(
-    (e) => (host === "all" || e.host === host) && (type === "all" || e.event_type === type),
+  const needle = q.trim().toLowerCase();
+  const shown = source.filter((e) =>
+    (host === "all" || e.host === host)
+    && (type === "all" || e.event_type === type)
+    && (!needle
+      || `${e.detail} ${e.actor ?? ""} ${e.host} ${e.source} ${e.phase} ${e.incident ?? ""}`
+        .toLowerCase().includes(needle)),
   );
 
   return (
@@ -44,23 +72,18 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
       <TopBar />
       <section className="panel tapefull">
         <h2>
-          Live telemetry
-          <span className="hint">
-            — {view === "recent" ? `last ${recent.length} events` : `${flagged.length} flagged in correlation window`}
-          </span>
+          Live telemetry <span className="hint">— {VIEW_HINT[view]}</span>
           <span className="spacer" />
-          <span className="hint mono">{shown.length} shown</span>
+          <span className="hint mono">{shown.length} / {source.length} shown</span>
         </h2>
         <div className="toolbar">
           <div className="tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={view === "recent"}
-              className={`tab mono${view === "recent" ? " on" : ""}`} onClick={() => setView("recent")}>
-              RECENT
-            </button>
-            <button type="button" role="tab" aria-selected={view === "flagged"}
-              className={`tab mono${view === "flagged" ? " on" : ""}`} onClick={() => setView("flagged")}>
-              ⚑ FLAGGED
-            </button>
+            {TABS.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={view === t.key}
+                className={`tab mono${view === t.key ? " on" : ""}`} onClick={() => setView(t.key)}>
+                {t.label}
+              </button>
+            ))}
           </div>
           <label className="filter mono">
             host
@@ -78,6 +101,10 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
               <option value="network_flow">network</option>
             </select>
           </label>
+          <input
+            className="qfilter mono" type="search" placeholder="filter — command, user, host, phase…"
+            value={q} onChange={(e) => setQ(e.target.value)}
+          />
         </div>
         <div className="tapefull-scroll">
           <TapeList events={shown} />

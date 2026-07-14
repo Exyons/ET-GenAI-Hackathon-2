@@ -37,7 +37,8 @@ def screen_warmup(
 # local, 0o600 state dir and loaded only from that same path (never from untrusted
 # input). sklearn IsolationForest models don't round-trip through JSON; pickle/joblib
 # is the standard persistence. An attacker able to write STATE_DIR already has code exec.
-def save_baseline(state_dir, auth_sentinel, net_sentinel, auth_threshold, net_threshold) -> None:
+def save_baseline(state_dir, auth_sentinel, net_sentinel, auth_threshold, net_threshold,
+                  process_baseline: set[str] | None = None) -> None:
     Path(state_dir).mkdir(parents=True, exist_ok=True)
     p = _path(state_dir)
     data = {
@@ -45,6 +46,7 @@ def save_baseline(state_dir, auth_sentinel, net_sentinel, auth_threshold, net_th
         "net_sentinel": net_sentinel,
         "auth_threshold": auth_threshold,
         "net_threshold": net_threshold,
+        "process_baseline": process_baseline or set(),
     }
     with open(p, "wb") as f:
         pickle.dump(data, f)

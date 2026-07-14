@@ -38,6 +38,7 @@ export type Status = {
   flagged_recent: number;
   baseline_ready: boolean;
   fleet: FleetSnapshot;
+  pipeline: PipelineInfo;
 };
 
 export type TapeEvent = {
@@ -49,6 +50,17 @@ export type TapeEvent = {
   detail: string;
   host: string;
   flagged: boolean;
+  incident?: string;
+};
+
+export type PipelineActivity = { t: string; stage: string; msg: string };
+
+export type PipelineInfo = {
+  stats: Record<string, number>;
+  activity: PipelineActivity[];
+  window_seconds: number;
+  process_baseline_size: number;
+  detectors: { auth: boolean; network: boolean };
 };
 
 export type IncidentSummary = {
@@ -112,3 +124,5 @@ export const getIncident = (id: string) => get<IncidentDetail>(`/api/incidents/$
 export const getStatus = () => get<Status>("/api/status");
 export const getRecentEvents = (limit = 100) => get<TapeEvent[]>(`/api/events/recent?limit=${limit}`);
 export const getFlaggedEvents = () => get<TapeEvent[]>("/api/events/flagged");
+export const getIncidentEvents = (high = false) =>
+  get<TapeEvent[]>(`/api/events/incidents${high ? "?high=true" : ""}`);
