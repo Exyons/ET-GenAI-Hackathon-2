@@ -30,7 +30,8 @@ def build_attribute_fn(
     """Assemble the live attribution function. Embeds the corpus once; each call
     retrieves + reasons + predicts. Fully injectable so tests skip Ollama."""
     chat_fn = chat_fn or (lambda p: ollama_chat(p, model=config.CHAT_MODEL, host=config.OLLAMA_HOST))
-    embed_fn = embed_fn or (lambda texts: ollama_embed(texts, host=config.OLLAMA_HOST))
+    embed_fn = embed_fn or (lambda texts: ollama_embed(texts, model=config.EMBED_MODEL,
+                                                       host=config.OLLAMA_HOST))
 
     corpus = load_corpus(corpus_path)
     doc_by_id = {d.id: d for d in corpus}
