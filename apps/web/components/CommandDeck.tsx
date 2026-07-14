@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -11,20 +12,25 @@ import { subscribe } from "../lib/stream";
 import { FleetPanel } from "./FleetPanel";
 import { IncidentBoard } from "./IncidentBoard";
 import { KillChain } from "./KillChain";
-import { Tape } from "./Tape";
 import { TopBar, type LinkState } from "./TopBar";
 import { Throughput } from "./Throughput";
 
-const TAPE_MAX = 80;
+const TAPE_MAX = 200;
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: React.ReactNode; tone?: string }) {
-  return (
-    <div className={`kpi${tone ? ` ${tone}` : ""}`}>
+function Kpi({ label, value, sub, tone, href }: {
+  label: string; value: string; sub?: React.ReactNode; tone?: string; href?: string;
+}) {
+  const body = (
+    <>
       <div className="l">{label}</div>
       <div className="n mono">{value}</div>
       {sub && <div className="s mono">{sub}</div>}
-    </div>
+    </>
   );
+  const cls = `kpi${tone ? ` ${tone}` : ""}`;
+  return href
+    ? <Link href={href} className={`${cls} drill`}>{body}</Link>
+    : <div className={cls}>{body}</div>;
 }
 
 function KpiStrip({ status, apiUp }: { status: Status | null; apiUp: boolean }) {
@@ -45,13 +51,14 @@ function KpiStrip({ status, apiUp }: { status: Status | null; apiUp: boolean }) 
             : <span>freeze in {mmss(status!.warmup_remaining_s)}<span className="warmbar"><i style={{ width: `${pct * 100}%` }} /></span></span>)
           : status?.baseline_ready ? "baseline frozen" : "guardrails only"}
       />
-      <Kpi label="Events / min" value={String(fleet?.rate_epm ?? 0)} sub={`${compact(status?.events_seen ?? 0)} total`} />
+      <Kpi label="Events / min" value={String(fleet?.rate_epm ?? 0)} sub={`${compact(status?.events_seen ?? 0)} total`}
+        href="/telemetry" />
       <Kpi label="Sensors" value={fleet ? `${online}/${fleet.hosts.length}` : "0/0"} sub="reporting < 15s" />
       <Kpi label="Flagged" value={String(status?.flagged_recent ?? 0)} sub="in correlation window"
-        tone={(status?.flagged_recent ?? 0) > 0 ? "warm" : undefined} />
-      <Kpi label="Incidents" value={String(status?.incident_count ?? 0)} sub="live correlated" />
+        tone={(status?.flagged_recent ?? 0) > 0 ? "warm" : undefined} href="/telemetry?view=flagged" />
+      <Kpi label="Incidents" value={String(status?.incident_count ?? 0)} sub="live correlated" href="#incidents" />
       <Kpi label="High conf" value={String(status?.high_confidence_count ?? 0)} sub="multi-source · multi-phase"
-        tone={(status?.high_confidence_count ?? 0) > 0 ? "bad" : undefined} />
+        tone={(status?.high_confidence_count ?? 0) > 0 ? "bad" : undefined} href="#incidents" />
     </section>
   );
 }
@@ -131,8 +138,7 @@ export function CommandDeck({
       <div className="cols">
         <IncidentBoard incidents={incidents} variant="live" attributed={attributed} now={now} />
         <div className="side">
-          <FleetPanel hosts={status?.fleet?.hosts ?? []} />
-          <Tape events={tape} ratePerMin={status?.fleet?.rate_epm ?? 0} />
+          <FleetPanel hosts={status?.fleet?.hosts ?? []} tape={tape} />
         </div>
       </div>
     </>

@@ -110,4 +110,5 @@ export const getIncidents = () => get<IncidentSummary[]>("/api/incidents");
 export const getDemoIncidents = () => get<IncidentSummary[]>("/api/demo/incidents");
 export const getIncident = (id: string) => get<IncidentDetail>(`/api/incidents/${id}`);
 export const getStatus = () => get<Status>("/api/status");
-export const getRecentEvents = () => get<TapeEvent[]>("/api/events/recent");
+export const getRecentEvents = (limit = 100) => get<TapeEvent[]>(`/api/events/recent?limit=${limit}`);
+export const getFlaggedEvents = () => get<TapeEvent[]>("/api/events/flagged");
