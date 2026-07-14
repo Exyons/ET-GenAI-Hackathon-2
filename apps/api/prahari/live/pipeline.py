@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
+from prahari import config
 from prahari.api.demo import incident_id
 from prahari.api.serialize import event_view, to_summary
 from prahari.correlate.correlator import correlate
@@ -58,6 +59,7 @@ class LivePipeline:
         self.process_baseline: set[str] = set()
         self._seen_flags: dict = {}           # (reason, host, signature) -> last flagged ts
         self._attr_retry_t = 0.0
+        self.attr_error: str | None = None    # last attribution failure, verbatim
         self.stats: Counter = Counter()
         self.activity: deque = deque(maxlen=60)
 
@@ -244,13 +246,15 @@ class LivePipeline:
             view = self.attribute_fn(inc)
             self.attributions[iid] = view
             self.stats["attributed"] += 1
+            self.attr_error = None
             self._log("attribution", f"{iid} mapped to {len(view.techniques)} ATT&CK techniques"
                                      + (" (grounded)" if view.grounded else ""))
             self.bus.publish({"type": "attribution", "id": iid, **view.model_dump()})
-        except Exception:
-            # attribution failure must never break the pipeline
+        except Exception as e:
+            # attribution failure must never break the pipeline — but say WHY it failed
             self.stats["attribution_failed"] += 1
-            self._log("attribution", f"{iid} attribution failed (LLM unreachable) — detection unaffected")
+            self.attr_error = f"{type(e).__name__}: {str(e)[:160]}"
+            self._log("attribution", f"{iid} attribution failed — {self.attr_error} · retrying every 60s")
 
     # ---- operator / query ----
     def reset_baseline(self) -> None:
@@ -288,5 +292,7 @@ class LivePipeline:
                 "process_baseline_size": len(self.process_baseline),
                 "detectors": {"auth": self.auth_sentinel is not None,
                               "network": self.net_sentinel is not None},
+                "models": {"chat": config.CHAT_MODEL, "embed": config.EMBED_MODEL},
+                "attribution_error": self.attr_error,
             },
         }

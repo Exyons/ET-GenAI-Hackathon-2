@@ -61,6 +61,8 @@ export type PipelineInfo = {
   window_seconds: number;
   process_baseline_size: number;
   detectors: { auth: boolean; network: boolean };
+  models: { chat: string; embed: string };
+  attribution_error: string | null;
 };
 
 export type IncidentSummary = {
