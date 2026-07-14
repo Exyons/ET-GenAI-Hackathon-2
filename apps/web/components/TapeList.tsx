@@ -20,6 +20,7 @@ export function TapeList({ events, showHost = true }: { events: TapeEvent[]; sho
           <i className={`swatch ${TYPE_CLS[e.event_type] ?? ""}`} />
           {showHost && <span className="host mono">{e.host}</span>}
           <span className="what">
+            {e.incident && <a href={`/incidents/${e.incident}`} className="incchip mono">{e.incident}</a>}
             {e.actor ? <b className="actor mono">{e.actor}</b> : null}
             {e.actor ? " · " : ""}
             {e.detail || e.event_type}

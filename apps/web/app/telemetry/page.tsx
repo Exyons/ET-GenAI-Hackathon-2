@@ -8,7 +8,8 @@ export default async function TelemetryPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const { view } = await searchParams;
-  const initial: TelemetryView = view === "flagged" ? "flagged" : "recent";
+  const initial: TelemetryView =
+    view === "flagged" || view === "incidents" || view === "high" ? view : "recent";
   return (
     <main className="wrap">
       <TelemetryConsole initialView={initial} />

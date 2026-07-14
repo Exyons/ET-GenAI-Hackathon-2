@@ -64,6 +64,10 @@ def reset_pipeline(tmp_path):
     p.auth_sentinel = p.net_sentinel = None
     p.auth_threshold = p.net_threshold = None
     p.fleet = Fleet()
+    p.process_baseline = set()
+    p._seen_discovery = {}
+    p.stats.clear()
+    p.activity.clear()
     yield
 
 
@@ -78,8 +82,10 @@ def test_status_shape():
     body = r.json()
     assert set(body) == {"mode", "events_seen", "warmup_remaining_s", "warmup_seconds",
                          "incident_count", "high_confidence_count", "flagged_recent",
-                         "baseline_ready", "fleet"}
+                         "baseline_ready", "fleet", "pipeline"}
     assert set(body["fleet"]) == {"hosts", "by_type", "series", "rate_epm"}
+    assert set(body["pipeline"]) == {"stats", "activity", "window_seconds",
+                                     "process_baseline_size", "detectors"}
 
 
 def test_baseline_reset_requires_token_and_warms_up():
@@ -140,3 +146,14 @@ def test_live_incident_after_attack():
     detail = client.get("/api/incidents/inc-c553").json()
     assert detail["attribution"]["technique_ids"] == ["T1021.006"]
     assert len(detail["timeline"]) == 3
+
+    # incident-scoped event views (KPI drill-downs)
+    evts = client.get("/api/events/incidents").json()
+    assert any(e["incident"] == "inc-c553" for e in evts)
+    high = client.get("/api/events/incidents?high=true").json()
+    assert {e["incident"] for e in high} == {"inc-c553"}
+
+    # pipeline activity narrates the stages
+    act = client.get("/api/status").json()["pipeline"]["activity"]
+    stages = {a["stage"] for a in act}
+    assert {"baseline", "sentinel", "correlator", "attribution"} <= stages
