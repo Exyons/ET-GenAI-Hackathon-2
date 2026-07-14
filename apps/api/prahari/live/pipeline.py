@@ -26,6 +26,13 @@ def norm_cmd(cmd: str) -> str:
     return " ".join(cmd.split()).lower()[:200]
 
 
+# a sentinel fit on a handful of events produces a meaningless threshold that
+# flags everything; below this many clean training events the detector stays off
+MIN_FIT_EVENTS = 12
+
+ATTR_RETRY_SECONDS = 60.0
+
+
 class LivePipeline:
     def __init__(self, warmup_seconds, window_seconds, quantile, attribute_fn, bus, state_dir):
         self.warmup_seconds = warmup_seconds
@@ -49,7 +56,8 @@ class LivePipeline:
         self._high_conf: set[str] = set()
         self.fleet = Fleet()
         self.process_baseline: set[str] = set()
-        self._seen_discovery: dict = {}       # (host, cmd) -> last flagged timestamp
+        self._seen_flags: dict = {}           # (reason, host, signature) -> last flagged ts
+        self._attr_retry_t = 0.0
         self.stats: Counter = Counter()
         self.activity: deque = deque(maxlen=60)
 
@@ -100,16 +108,25 @@ class LivePipeline:
                 and (time.monotonic() - self._t0) >= self.warmup_seconds):
             for iid, inc in self._fit_and_transition():
                 await self._attribute(iid, inc)
+        # retry attribution for high-conf incidents that still lack it — covers the
+        # LLM coming up after the incident was promoted
+        missing = [iid for iid in self._high_conf if iid not in self.attributions]
+        if missing and (time.monotonic() - self._attr_retry_t) >= ATTR_RETRY_SECONDS:
+            self._attr_retry_t = time.monotonic()
+            for iid in missing:
+                inc = self.incidents.get(iid)
+                if inc is not None:
+                    await self._attribute(iid, inc)
 
     def _fit_and_transition(self) -> list[tuple[str, Incident]]:
         buf = self.warmup_events
         clean, suspicious = screen_warmup(buf)  # poisoning defense #2
         auth_clean = [e for e in clean if e.event_type == "auth"]
         flow_clean = [e for e in clean if e.event_type == "network_flow"]
-        if auth_clean:
+        if len(auth_clean) >= MIN_FIT_EVENTS:
             self.auth_sentinel = Sentinel(random_state=0).fit(clean)
             self.auth_threshold = self.auth_sentinel.suggest_threshold(clean, quantile=self.quantile)
-        if flow_clean:
+        if len(flow_clean) >= MIN_FIT_EVENTS:
             self.net_sentinel = NetworkSentinel(random_state=0).fit(clean)
             scores = self.net_sentinel.anomaly_scores(flow_clean)
             self.net_threshold = float(np.quantile(scores, self.quantile))
@@ -131,8 +148,12 @@ class LivePipeline:
                       self.auth_threshold, self.net_threshold, self.process_baseline)
         self.mode = "monitoring"
         self.warmup_events = []
-        self._log("baseline", f"baseline frozen — fit {len(auth_clean)} auth + {len(flow_clean)} flow "
-                              f"events · screened {len(suspicious)} · learned "
+
+        def _fit_note(model, n: int) -> str:
+            return f"fit on {n}" if model is not None else f"off ({n} < {MIN_FIT_EVENTS} events)"
+        self._log("baseline", f"baseline frozen — auth model {_fit_note(self.auth_sentinel, len(auth_clean))} · "
+                              f"network model {_fit_note(self.net_sentinel, len(flow_clean))} · "
+                              f"screened {len(suspicious)} · learned "
                               f"{len(self.process_baseline)} normal process commands")
         return self._correlate()
 
@@ -162,32 +183,38 @@ class LivePipeline:
         return host is not None and any(
             target_of(x) == host and x.event_type != "process" for x in self.recent)
 
+    def _dedup(self, reason: str, host: str | None, signature: str, ts) -> bool:
+        """Each distinct behavior (per host) is reported once per window; while it
+        keeps repeating the suppression keeps refreshing — steady noise stays quiet."""
+        key = (reason, host, signature)
+        last = self._seen_flags.get(key)
+        self._seen_flags[key] = ts
+        return last is None or (ts - last).total_seconds() >= self.window_seconds
+
     def _flag_reason(self, e) -> str | None:
+        host, ts = target_of(e), e.timestamp
         # strictly greater: with a homogeneous baseline the threshold equals the
         # normal score, and >= would flag every ordinary event as anomalous
         if e.event_type == "auth" and self.auth_sentinel is not None and self.auth_threshold is not None:
             if self.auth_sentinel.anomaly_score(e) > self.auth_threshold:
-                return "auth_anomaly"
+                sig = f"{e.source_entity}|{e.src_ip}|{e.auth_type}|{e.outcome}"
+                return "auth_anomaly" if self._dedup("auth_anomaly", host, sig, ts) else None
         if e.event_type == "network_flow":
+            dst = e.dst_ip or e.dst_host or "?"
             if (self.net_sentinel is not None and self.net_threshold is not None
                     and self.net_sentinel.anomaly_score(e) > self.net_threshold):
-                return "net_anomaly"
+                return "net_anomaly" if self._dedup("net_anomaly", host, dst, ts) else None
             # poisoning defense #3: model-independent guardrail — external flow with corroboration
-            if e.src_internal is False and self._host_has_flag(target_of(e)):
-                return "external_corroborated"
+            if e.src_internal is False and self._host_has_flag(host):
+                return "external_corroborated" if self._dedup("external", host, dst, ts) else None
         if e.event_type == "process":
             cmd = norm_cmd(e.dest_entity or "")
             if cmd and cmd in self.process_baseline:
                 return None  # learned-normal command (system services, cron, …)
             if killchain_phase(e) == "discovery":
-                key = (target_of(e), cmd)
-                last = self._seen_discovery.get(key)
-                self._seen_discovery[key] = e.timestamp
-                if last is None or (e.timestamp - last).total_seconds() >= self.window_seconds:
-                    return "discovery"
-                # same recon command repeating within the window → already reported
-            if self._host_has_anomaly(target_of(e)):
-                return "process_corroborated"
+                return "discovery" if self._dedup("discovery", host, cmd, ts) else None
+            if self._host_has_anomaly(host):
+                return "process_corroborated" if self._dedup("corroborated", host, cmd, ts) else None
         return None
 
     def _prune(self) -> None:
@@ -196,7 +223,7 @@ class LivePipeline:
         latest = max(e.timestamp for e in self.recent)
         cutoff = latest - timedelta(seconds=2 * self.window_seconds)
         self.recent = deque(e for e in self.recent if e.timestamp >= cutoff)
-        self._seen_discovery = {k: t for k, t in self._seen_discovery.items() if t >= cutoff}
+        self._seen_flags = {k: t for k, t in self._seen_flags.items() if t >= cutoff}
 
     def _correlate(self) -> list[tuple[str, Incident]]:
         new_hc: list[tuple[str, Incident]] = []
@@ -231,7 +258,7 @@ class LivePipeline:
         self.auth_sentinel = self.net_sentinel = None
         self.auth_threshold = self.net_threshold = None
         self.process_baseline = set()
-        self._seen_discovery = {}
+        self._seen_flags = {}
         self.warmup_events = []
         self._t0 = None
         self.recent.clear()

@@ -32,7 +32,14 @@ _SERVICE_ACCOUNTS = {"", "-", "system", "local service", "network service", "ano
 def is_internal(ip: str | None) -> bool | None:
     if not ip:
         return None
+    ip = ip.lower()
+    if ":" in ip:  # IPv6: loopback, link-local, unique-local are internal
+        return ip == "::1" or ip.startswith(("fe80:", "fd", "fc"))
     return ip.startswith(_INTERNAL)
+
+
+def is_loopback(ip: str | None) -> bool:
+    return ip is not None and (ip.startswith("127.") or ip == "::1")
 
 
 def _now() -> str:
@@ -92,8 +99,8 @@ def map_sysmon_network(xml: str, ts: str, hostname: str = HOSTNAME) -> dict | No
     if _event_id(xml) != 3:
         return None
     dst = _data(xml, "DestinationIp")
-    if not dst:
-        return None
+    if not dst or is_loopback(dst):
+        return None  # localhost chatter is not network telemetry
     return {"timestamp": ts, "event_type": "network_flow", "source": "windows-sysmon",
             "src_host": hostname, "dst_ip": dst,
             "src_internal": is_internal(_data(xml, "SourceIp")), "raw": xml}
