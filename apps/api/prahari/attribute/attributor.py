@@ -85,7 +85,10 @@ class Attributor:
 
         parsed = _parse_json(raw)
         allowed = set(retrieved_ids)
-        ids = [tid for tid in parsed.get("technique_ids", []) if tid in allowed]
+        # the prompt maps one technique per timeline step, so the model repeats an
+        # ID when steps share a technique — dedupe, preserving first-seen order
+        ids = list(dict.fromkeys(
+            tid for tid in parsed.get("technique_ids", []) if tid in allowed))
         return Attribution(
             technique_ids=ids,
             explanation=str(parsed.get("explanation", "")),

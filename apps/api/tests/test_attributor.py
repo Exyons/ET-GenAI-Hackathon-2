@@ -50,3 +50,13 @@ def test_attributor_parses_and_guards_hallucinations():
     assert "T9999" not in attr.technique_ids   # hallucination dropped
     assert set(attr.technique_ids) <= set(attr.retrieved_ids)
     assert "lateral movement" in attr.explanation
+
+
+def test_attributor_dedupes_repeated_ids():
+    # per-step mapping legitimately repeats an id when steps share a technique
+    def fake_chat(prompt: str) -> str:
+        return '{"technique_ids": ["T1071", "T1021", "T1071", "T1071"], "explanation": "x"}'
+
+    retriever = Retriever(embed_fn=_fake_embed).fit(CORPUS)
+    attr = Attributor(retriever, chat_fn=fake_chat, k=3).attribute(_incident())
+    assert attr.technique_ids == ["T1071", "T1021"]  # unique, first-seen order
