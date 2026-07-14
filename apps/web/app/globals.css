@@ -153,6 +153,9 @@ a.kpi.drill:hover { background: #1a2536; }
 .stage-name { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--paper); font-weight: 600; }
 .stage-state { font-size: 9px; letter-spacing: 0.1em; color: var(--calm); border: 1px solid rgba(63, 182, 168, 0.35);
   border-radius: 2px; padding: 1px 5px; white-space: nowrap; }
+.stage-state.err { color: var(--alert); border-color: rgba(229, 72, 77, 0.45); }
+.stage-err { margin-top: 5px; font-size: 9.5px; color: var(--alert); opacity: 0.9;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage-line { display: flex; justify-content: space-between; gap: 10px; font-size: 10.5px; padding: 2px 0; }
 .stage-line .k { color: var(--haze); }
 .stage-line .v { color: var(--paper); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

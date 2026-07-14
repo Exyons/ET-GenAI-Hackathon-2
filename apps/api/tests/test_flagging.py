@@ -89,3 +89,22 @@ def test_discovery_dedup_once_per_window(tmp_path):
     late = _ev(105 + 301, "process", "linux-proc", source_entity="root", src_host="web-01",
                dest_entity="sh -c whoami")
     assert p._flag_reason(late) == "discovery"
+
+
+def test_attribution_error_is_surfaced(tmp_path):
+    p = _fitted(tmp_path)
+
+    def boom(_):
+        raise RuntimeError("ollama 404: model 'embeddinggemma' not found, try pulling it first")
+    p.attribute_fn = boom
+    # NTLM anomaly + recon command on web-01 → high-confidence → attribution attempt
+    asyncio.run(p.ingest([
+        _ev(100, "auth", "linux-auth", source_entity="evil", src_host="kali",
+            dst_host="web-01", auth_type="NTLM", outcome="failure"),
+        _ev(101, "process", "linux-proc", source_entity="evil", src_host="web-01",
+            dest_entity="sh -c whoami"),
+    ]))
+    info = p.status()["pipeline"]
+    assert info["attribution_error"] is not None
+    assert "embeddinggemma" in info["attribution_error"]
+    assert info["models"]["chat"] and info["models"]["embed"]

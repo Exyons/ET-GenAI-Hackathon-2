@@ -21,11 +21,18 @@ attribution (techniques + cited explanation + predicted next tactic).
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh   # or: pacman -S ollama
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:7b        # chat — writes the explanation
+ollama pull embeddinggemma    # embeddings — powers ATT&CK retrieval (required!)
 ollama serve                                    # if not already a service
 # then (re)start the API; defaults already point at it:
-#   OLLAMA_HOST=http://localhost:11434  PRAHARI_CHAT_MODEL=qwen2.5:7b
+#   OLLAMA_HOST=http://localhost:11434
+#   PRAHARI_CHAT_MODEL=qwen2.5:7b  PRAHARI_EMBED_MODEL=embeddinggemma
 ```
+
+Config can live in a `.env` at the repo root (copy `.env.example`) — the API
+loads it on startup; real environment variables take precedence. If attribution
+fails, the **Attribute · LLM** card on the dashboard shows the exact error
+(e.g. `ollama 404: model 'embeddinggemma' not found, try pulling it first`).
 
 Where the output shows up: the **ATT&CK attribution** panel on an incident's
 detail page, the `ATT&CK MAPPED` pill on the incident board, the
