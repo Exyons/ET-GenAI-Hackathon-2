@@ -75,6 +75,22 @@ def events_flagged() -> list[dict]:
             for e in pipeline.recent]
 
 
+@router.get("/events/incidents")
+def events_incidents(high: bool = False) -> list[dict]:
+    # events belonging to live correlated incidents (optionally high-confidence only)
+    out = []
+    for inc in pipeline.incidents.values():
+        if high and not inc.high_confidence:
+            continue
+        iid = incident_id(inc)
+        for e in inc.timeline():
+            out.append({**event_view(e).model_dump(mode="json"),
+                        "host": target_of(e) or e.src_host or "unknown",
+                        "flagged": True, "incident": iid})
+    out.sort(key=lambda d: d["timestamp"])
+    return out
+
+
 @router.post("/baseline/reset")
 def baseline_reset(_: None = Depends(require_token)) -> dict:
     # the ONLY path back into warmup — a deliberate operator action, not a process restart

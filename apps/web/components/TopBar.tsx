@@ -12,7 +12,7 @@ const LINK_LABEL: Record<LinkState, string> = {
   unknown: "LINKING…",
 };
 
-export function TopBar({ mode, link }: { mode?: "warmup" | "monitoring" | null; link?: LinkState }) {
+export function TopBar({ link, nav = false }: { link?: LinkState; nav?: boolean }) {
   const [utc, setUtc] = useState<string | null>(null);
   useEffect(() => {
     const tick = () => setUtc(new Date().toISOString().slice(11, 19));
@@ -26,18 +26,10 @@ export function TopBar({ mode, link }: { mode?: "warmup" | "monitoring" | null; 
       <div className="brand">
         <span className="deva">प्रहरी</span>
         <span className="name">PRAHARI</span>
-        <span className="role">SOC COMMAND · CNI</span>
       </div>
       <span className="spacer" />
-      <span className="chip sovereign">SOVEREIGN · AIR-GAPPED</span>
-      {mode !== undefined && (
-        <span className={`chip mode ${mode ?? "off"}`}>
-          <span className="dot" />
-          {mode === "warmup" ? "BASELINE WARMUP" : mode === "monitoring" ? "MONITORING" : "OFFLINE"}
-        </span>
-      )}
       {link !== undefined && <span className={`chip link ${link}`}>{LINK_LABEL[link]}</span>}
-      {mode !== undefined && (
+      {nav && (
         <>
           <Link href="/telemetry" className="chip navlink">TELEMETRY</Link>
           <Link href="/report" className="chip navlink">REPORT</Link>

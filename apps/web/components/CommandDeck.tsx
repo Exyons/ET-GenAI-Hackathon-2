@@ -12,6 +12,7 @@ import { subscribe } from "../lib/stream";
 import { FleetPanel } from "./FleetPanel";
 import { IncidentBoard } from "./IncidentBoard";
 import { KillChain } from "./KillChain";
+import { PipelineMonitor } from "./PipelineMonitor";
 import { TopBar, type LinkState } from "./TopBar";
 import { Throughput } from "./Throughput";
 
@@ -33,9 +34,7 @@ function Kpi({ label, value, sub, tone, href, onClick }: {
   return <div className={cls}>{body}</div>;
 }
 
-function KpiStrip({ status, apiUp, onFocusBoard }: {
-  status: Status | null; apiUp: boolean; onFocusBoard: (f: "all" | "high") => void;
-}) {
+function KpiStrip({ status, apiUp }: { status: Status | null; apiUp: boolean }) {
   const fleet = status?.fleet ?? null;
   const online = fleet ? fleet.hosts.filter((h) => h.last_seen_s !== null && h.last_seen_s < 15).length : 0;
   const warmup = status?.mode === "warmup";
@@ -59,10 +58,10 @@ function KpiStrip({ status, apiUp, onFocusBoard }: {
       <Kpi label="Flagged" value={String(status?.flagged_recent ?? 0)} sub="in correlation window"
         tone={(status?.flagged_recent ?? 0) > 0 ? "warm" : undefined} href="/telemetry?view=flagged" />
       <Kpi label="Incidents" value={String(status?.incident_count ?? 0)} sub="live correlated"
-        onClick={() => onFocusBoard("all")} />
+        href="/telemetry?view=incidents" />
       <Kpi label="High conf" value={String(status?.high_confidence_count ?? 0)} sub="multi-source · multi-phase"
         tone={(status?.high_confidence_count ?? 0) > 0 ? "bad" : undefined}
-        onClick={() => onFocusBoard("high")} />
+        href="/telemetry?view=high" />
     </section>
   );
 }
@@ -81,22 +80,10 @@ export function CommandDeck({
   const [apiUp, setApiUp] = useState<boolean>(initialStatus !== null);
   const [sseUp, setSseUp] = useState<boolean | null>(null);
   const [now, setNow] = useState<number | null>(null);
-  const [boardFilter, setBoardFilter] = useState<"all" | "high">("all");
-  const [boardFlash, setBoardFlash] = useState(false);
   const apiUpRef = useRef(apiUp);
   apiUpRef.current = apiUp;
   const sseUpRef = useRef(sseUp);
   sseUpRef.current = sseUp;
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const focusBoard = (filter: "all" | "high") => {
-    setBoardFilter(filter);
-    document.getElementById("incidents")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setBoardFlash(false); // restart the flash animation even on repeat clicks
-    requestAnimationFrame(() => setBoardFlash(true));
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setBoardFlash(false), 1600);
-  };
 
   useEffect(() => {
     const unsub = subscribe((e) => {
@@ -139,23 +126,21 @@ export function CommandDeck({
 
   return (
     <>
-      <TopBar mode={apiUp ? status?.mode ?? null : null} link={link} />
+      <TopBar link={link} nav />
       {!apiUp && (
         <div className="linkdown mono">
           ▲ backend unreachable — <span className="cmd">cd apps/api &amp;&amp; uv run uvicorn prahari.main:app --port 8000</span> · retrying…
         </div>
       )}
-      <KpiStrip status={status} apiUp={apiUp} onFocusBoard={focusBoard} />
+      <KpiStrip status={status} apiUp={apiUp} />
       <Throughput
         series={status?.fleet?.series ?? []}
         hasSensors={(status?.fleet?.hosts?.length ?? 0) > 0}
       />
       <KillChain events={tape} />
+      <PipelineMonitor status={status} />
       <div className="cols">
-        <IncidentBoard
-          incidents={incidents} variant="live" attributed={attributed} now={now}
-          filter={boardFilter} onClearFilter={() => setBoardFilter("all")} flash={boardFlash}
-        />
+        <IncidentBoard incidents={incidents} variant="live" attributed={attributed} now={now} />
         <div className="side">
           <FleetPanel hosts={status?.fleet?.hosts ?? []} tape={tape} />
         </div>

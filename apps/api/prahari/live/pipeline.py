@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import time
-from collections import deque
-from datetime import timedelta
+from collections import Counter, deque
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
 from prahari.api.demo import incident_id
-from prahari.api.serialize import to_summary
+from prahari.api.serialize import event_view, to_summary
 from prahari.correlate.correlator import correlate
 from prahari.correlate.incident import Incident
 from prahari.correlate.killchain import killchain_phase, target_of
@@ -20,6 +20,10 @@ from prahari.live.baseline import (
     screen_warmup,
 )
 from prahari.live.fleet import Fleet
+
+
+def norm_cmd(cmd: str) -> str:
+    return " ".join(cmd.split()).lower()[:200]
 
 
 class LivePipeline:
@@ -44,6 +48,10 @@ class LivePipeline:
         self.attributions: dict = {}
         self._high_conf: set[str] = set()
         self.fleet = Fleet()
+        self.process_baseline: set[str] = set()
+        self._seen_discovery: dict = {}       # (host, cmd) -> last flagged timestamp
+        self.stats: Counter = Counter()
+        self.activity: deque = deque(maxlen=60)
 
         # Poisoning defense #1: a restart never re-learns — load the persisted baseline
         # and start straight in MONITORING. Re-baselining is an explicit operator action.
@@ -53,11 +61,20 @@ class LivePipeline:
             self.net_sentinel = data["net_sentinel"]
             self.auth_threshold = data["auth_threshold"]
             self.net_threshold = data["net_threshold"]
+            self.process_baseline = data.get("process_baseline") or set()
             self.mode = "monitoring"
+            self._log("baseline", "persisted baseline loaded — monitoring (restart never re-learns)")
+
+    def _log(self, stage: str, msg: str) -> None:
+        self.activity.append({"t": datetime.now(timezone.utc).isoformat(),
+                              "stage": stage, "msg": msg})
 
     # ---- ingest / state machine ----
     async def ingest(self, events: list) -> None:
         self.events_seen += len(events)
+        if events:
+            self.stats["batches"] += 1
+            self.stats["events"] += len(events)
         pairs: list[tuple[str, Incident]] = []
         tape: list[dict] = []
         if self.mode == "warmup":
@@ -96,26 +113,40 @@ class LivePipeline:
             self.net_sentinel = NetworkSentinel(random_state=0).fit(clean)
             scores = self.net_sentinel.anomaly_scores(flow_clean)
             self.net_threshold = float(np.quantile(scores, self.quantile))
+        # process baseline: commands seen (clean) during warmup are this fleet's normal —
+        # system services re-running them later are never flagged as discovery
+        self.process_baseline = {norm_cmd(e.dest_entity) for e in clean
+                                 if e.event_type == "process" and e.dest_entity}
         for e in suspicious:  # seed so they correlate immediately, not absorbed
             self.recent.append(e)
+        self.stats["screened"] += len(suspicious)
         if buf and len(suspicious) / len(buf) > 0.10:
             self.bus.publish({
                 "type": "warning", "reason": "warmup_contaminated",
                 "suspicious": len(suspicious), "total": len(buf),
             })
+            self._log("baseline", f"⚠ warmup contaminated — {len(suspicious)}/{len(buf)} "
+                                  "events screened out and queued for correlation")
         save_baseline(self.state_dir, self.auth_sentinel, self.net_sentinel,
-                      self.auth_threshold, self.net_threshold)
+                      self.auth_threshold, self.net_threshold, self.process_baseline)
         self.mode = "monitoring"
         self.warmup_events = []
+        self._log("baseline", f"baseline frozen — fit {len(auth_clean)} auth + {len(flow_clean)} flow "
+                              f"events · screened {len(suspicious)} · learned "
+                              f"{len(self.process_baseline)} normal process commands")
         return self._correlate()
 
     def _monitor(self, events: list, tape: list[dict] | None = None) -> list[tuple[str, Incident]]:
         flags = []
         for e in events:
-            flagged = self._is_flagged(e)
-            if flagged:
+            reason = self._flag_reason(e)
+            if reason:
                 self.recent.append(e)
-            flags.append(flagged)
+                self.stats[reason] += 1
+                host = target_of(e) or e.src_host or "?"
+                self._log("sentinel", f"⚑ {reason.replace('_', ' ')} · {host} · "
+                                      f"{event_view(e).detail[:70]}")
+            flags.append(reason is not None)
         if tape is not None:
             tape += self.fleet.observe(events, flags)
         self._prune()
@@ -125,22 +156,39 @@ class LivePipeline:
     def _host_has_flag(self, host: str | None) -> bool:
         return host is not None and any(target_of(x) == host for x in self.recent)
 
-    def _is_flagged(self, e) -> bool:
+    def _host_has_anomaly(self, host: str | None) -> bool:
+        # non-process evidence only — a flagged process must never corroborate more
+        # processes, or one discovery command cascades into flagging everything
+        return host is not None and any(
+            target_of(x) == host and x.event_type != "process" for x in self.recent)
+
+    def _flag_reason(self, e) -> str | None:
+        # strictly greater: with a homogeneous baseline the threshold equals the
+        # normal score, and >= would flag every ordinary event as anomalous
         if e.event_type == "auth" and self.auth_sentinel is not None and self.auth_threshold is not None:
-            if self.auth_sentinel.anomaly_score(e) >= self.auth_threshold:
-                return True
-        if e.event_type == "network_flow" and self.net_sentinel is not None and self.net_threshold is not None:
-            if self.net_sentinel.anomaly_score(e) >= self.net_threshold:
-                return True
+            if self.auth_sentinel.anomaly_score(e) > self.auth_threshold:
+                return "auth_anomaly"
+        if e.event_type == "network_flow":
+            if (self.net_sentinel is not None and self.net_threshold is not None
+                    and self.net_sentinel.anomaly_score(e) > self.net_threshold):
+                return "net_anomaly"
+            # poisoning defense #3: model-independent guardrail — external flow with corroboration
+            if e.src_internal is False and self._host_has_flag(target_of(e)):
+                return "external_corroborated"
         if e.event_type == "process":
+            cmd = norm_cmd(e.dest_entity or "")
+            if cmd and cmd in self.process_baseline:
+                return None  # learned-normal command (system services, cron, …)
             if killchain_phase(e) == "discovery":
-                return True
-            if self._host_has_flag(target_of(e)):
-                return True
-        # poisoning defense #3: model-independent guardrail — external flow with corroboration
-        if e.event_type == "network_flow" and e.src_internal is False and self._host_has_flag(target_of(e)):
-            return True
-        return False
+                key = (target_of(e), cmd)
+                last = self._seen_discovery.get(key)
+                self._seen_discovery[key] = e.timestamp
+                if last is None or (e.timestamp - last).total_seconds() >= self.window_seconds:
+                    return "discovery"
+                # same recon command repeating within the window → already reported
+            if self._host_has_anomaly(target_of(e)):
+                return "process_corroborated"
+        return None
 
     def _prune(self) -> None:
         if not self.recent:
@@ -148,6 +196,7 @@ class LivePipeline:
         latest = max(e.timestamp for e in self.recent)
         cutoff = latest - timedelta(seconds=2 * self.window_seconds)
         self.recent = deque(e for e in self.recent if e.timestamp >= cutoff)
+        self._seen_discovery = {k: t for k, t in self._seen_discovery.items() if t >= cutoff}
 
     def _correlate(self) -> list[tuple[str, Incident]]:
         new_hc: list[tuple[str, Incident]] = []
@@ -157,6 +206,9 @@ class LivePipeline:
             if inc.high_confidence and iid not in self._high_conf:
                 self._high_conf.add(iid)
                 self.bus.publish({"type": "incident", **to_summary(inc).model_dump()})
+                self._log("correlator", f"{iid} → HIGH-CONFIDENCE · {inc.entity} · "
+                                        f"{len(inc.events)} events / {len(inc.sources)} sensors / "
+                                        f"{len(inc.phases)} phases")
                 new_hc.append((iid, inc))
         return new_hc
 
@@ -164,19 +216,27 @@ class LivePipeline:
         try:
             view = self.attribute_fn(inc)
             self.attributions[iid] = view
+            self.stats["attributed"] += 1
+            self._log("attribution", f"{iid} mapped to {len(view.techniques)} ATT&CK techniques"
+                                     + (" (grounded)" if view.grounded else ""))
             self.bus.publish({"type": "attribution", "id": iid, **view.model_dump()})
         except Exception:
-            pass  # attribution failure must never break the pipeline
+            # attribution failure must never break the pipeline
+            self.stats["attribution_failed"] += 1
+            self._log("attribution", f"{iid} attribution failed (LLM unreachable) — detection unaffected")
 
     # ---- operator / query ----
     def reset_baseline(self) -> None:
         delete_baseline(self.state_dir)
         self.auth_sentinel = self.net_sentinel = None
         self.auth_threshold = self.net_threshold = None
+        self.process_baseline = set()
+        self._seen_discovery = {}
         self.warmup_events = []
         self._t0 = None
         self.recent.clear()
         self.mode = "warmup"
+        self._log("baseline", "operator reset — re-learning normal from scratch")
 
     def status(self) -> dict:
         if self.mode == "warmup":
@@ -194,4 +254,12 @@ class LivePipeline:
             "flagged_recent": len(self.recent),
             "baseline_ready": self.auth_sentinel is not None or self.net_sentinel is not None,
             "fleet": self.fleet.snapshot(),
+            "pipeline": {
+                "stats": dict(self.stats),
+                "activity": list(self.activity)[-15:],
+                "window_seconds": self.window_seconds,
+                "process_baseline_size": len(self.process_baseline),
+                "detectors": {"auth": self.auth_sentinel is not None,
+                              "network": self.net_sentinel is not None},
+            },
         }
