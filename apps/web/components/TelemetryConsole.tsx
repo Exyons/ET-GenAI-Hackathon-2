@@ -57,6 +57,9 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
 
   const source =
     view === "recent" ? recent : view === "flagged" ? flagged : view === "incidents" ? incEvents : highEvents;
+  const incidentCount = view === "incidents" || view === "high"
+    ? new Set(source.map((e) => e.incident)).size
+    : null;
   const hosts = useMemo(() => [...new Set(recent.map((e) => e.host))].sort(), [recent]);
   const needle = q.trim().toLowerCase();
   const shown = source.filter((e) =>
@@ -74,7 +77,10 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
         <h2>
           Live telemetry <span className="hint">— {VIEW_HINT[view]}</span>
           <span className="spacer" />
-          <span className="hint mono">{shown.length} / {source.length} shown</span>
+          <span className="hint mono">
+            {incidentCount !== null ? `${incidentCount} incident${incidentCount === 1 ? "" : "s"} · ` : ""}
+            {shown.length} / {source.length} events shown
+          </span>
         </h2>
         <div className="toolbar">
           <div className="tabs" role="tablist">

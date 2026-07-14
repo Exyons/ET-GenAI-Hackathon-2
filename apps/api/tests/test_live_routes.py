@@ -65,7 +65,7 @@ def reset_pipeline(tmp_path):
     p.auth_threshold = p.net_threshold = None
     p.fleet = Fleet()
     p.process_baseline = set()
-    p._seen_discovery = {}
+    p._seen_flags = {}
     p.stats.clear()
     p.activity.clear()
     yield
