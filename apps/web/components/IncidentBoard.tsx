@@ -63,7 +63,7 @@ export function IncidentBoard({
   now?: number | null;
 }) {
   return (
-    <section className="panel incpanel">
+    <section className="panel incpanel" id="incidents">
       <h2>
         Active incidents <span className="hint">— ranked by compound risk</span>
         <span className="spacer" />

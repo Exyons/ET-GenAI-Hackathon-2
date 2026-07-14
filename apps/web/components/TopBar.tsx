@@ -37,7 +37,13 @@ export function TopBar({ mode, link }: { mode?: "warmup" | "monitoring" | null; 
         </span>
       )}
       {link !== undefined && <span className={`chip link ${link}`}>{LINK_LABEL[link]}</span>}
-      {mode !== undefined && <Link href="/demo" className="chip navlink">DEMO ▸</Link>}
+      {mode !== undefined && (
+        <>
+          <Link href="/telemetry" className="chip navlink">TELEMETRY</Link>
+          <Link href="/report" className="chip navlink">REPORT</Link>
+          <Link href="/demo" className="chip navlink">DEMO</Link>
+        </>
+      )}
       <span className="chip utc mono">{utc ?? "--:--:--"} UTC</span>
     </header>
   );

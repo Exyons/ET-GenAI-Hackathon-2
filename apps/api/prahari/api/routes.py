@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from prahari import config
 from prahari.api.demo import demo_incidents, incident_id
 from prahari.api.models import IncidentDetail, IncidentSummary, MetricsView
-from prahari.api.serialize import to_detail, to_summary
+from prahari.api.serialize import event_view, to_detail, to_summary
+from prahari.correlate.killchain import target_of
+from prahari.live.fleet import TAPE_SIZE
 from prahari.live.state import bus, pipeline
 from prahari.schema import CanonicalEvent
 
@@ -57,10 +59,20 @@ def status() -> dict:
 
 
 @router.get("/events/recent")
-def events_recent() -> list[dict]:
+def events_recent(limit: int = Query(default=100, ge=1, le=TAPE_SIZE)) -> list[dict]:
     # newest-last tape of raw telemetry for the command deck's initial render;
     # afterwards the UI follows the SSE "telemetry" frames.
-    return list(pipeline.fleet.tape)
+    tape = list(pipeline.fleet.tape)
+    return tape[-limit:]
+
+
+@router.get("/events/flagged")
+def events_flagged() -> list[dict]:
+    # every event the sentinels flagged inside the correlation window —
+    # the population behind the FLAGGED tile
+    return [{**event_view(e).model_dump(mode="json"),
+             "host": target_of(e) or e.src_host or "unknown", "flagged": True}
+            for e in pipeline.recent]
 
 
 @router.post("/baseline/reset")
