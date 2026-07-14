@@ -116,6 +116,18 @@ def test_recent_events_tape():
     assert len(tape) == 18
     assert {"timestamp", "event_type", "phase", "source", "actor", "detail",
             "host", "flagged"} <= set(tape[0])
+    assert len(client.get("/api/events/recent?limit=5").json()) == 5
+    assert client.get("/api/events/recent?limit=0").status_code == 422
+
+
+def test_flagged_events_window():
+    assert client.get("/api/events/flagged").json() == []
+    client.post("/api/ingest", json=_json(_benign()), headers=TOKEN)
+    client.post("/api/ingest", json=_json(_attack()), headers=TOKEN)
+    flagged = client.get("/api/events/flagged").json()
+    assert len(flagged) >= 1
+    assert all(e["flagged"] is True for e in flagged)
+    assert any(e["host"] == "C553" for e in flagged)
 
 
 def test_live_incident_after_attack():
