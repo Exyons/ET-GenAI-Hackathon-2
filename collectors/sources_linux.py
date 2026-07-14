@@ -25,7 +25,14 @@ _INTERNAL = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
 def is_internal(ip: str | None) -> bool | None:
     if not ip:
         return None
+    ip = ip.lower()
+    if ":" in ip:  # IPv6: loopback, link-local, unique-local are internal
+        return ip == "::1" or ip.startswith(("fe80:", "fd", "fc"))
     return ip.startswith(_INTERNAL)
+
+
+def is_loopback(ip: str | None) -> bool:
+    return ip is not None and (ip.startswith("127.") or ip == "::1")
 
 
 def _now() -> str:
@@ -89,6 +96,8 @@ def map_conntrack(line: str, ts: str, hostname: str = HOSTNAME) -> dict | None:
     m = re.search(r"\bdst=(\S+)", line)
     if not m:
         return None
+    if is_loopback(m.group(1)):
+        return None  # localhost chatter is not network telemetry
     src = re.search(r"\bsrc=(\S+)", line)
     return {"timestamp": ts, "event_type": "network_flow", "source": "linux-conntrack",
             "src_host": hostname, "dst_ip": m.group(1),

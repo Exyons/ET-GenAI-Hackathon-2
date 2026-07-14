@@ -73,3 +73,11 @@ def test_map_proc():
 def test_is_internal():
     assert is_internal("10.0.0.9") and is_internal("192.168.1.1") and is_internal("172.16.0.1")
     assert not is_internal("52.84.23.17")
+    assert is_internal("::1") and is_internal("fe80::1") and is_internal("fd00::5")
+    assert not is_internal("2606:4700::1111")
+
+
+def test_conntrack_skips_loopback():
+    for dst in ("127.0.0.1", "::1"):
+        line = f"[NEW] tcp 6 120 SYN_SENT src={dst} dst={dst} sport=1 dport=2"
+        assert map_conntrack(line, TS, "vm1") is None

@@ -23,10 +23,10 @@ export function TopBar({ link, nav = false }: { link?: LinkState; nav?: boolean 
 
   return (
     <header className="topbar">
-      <div className="brand">
+      <Link href="/" className="brand" aria-label="Back to command view">
         <span className="deva">प्रहरी</span>
         <span className="name">PRAHARI</span>
-      </div>
+      </Link>
       <span className="spacer" />
       {link !== undefined && <span className={`chip link ${link}`}>{LINK_LABEL[link]}</span>}
       {nav && (
