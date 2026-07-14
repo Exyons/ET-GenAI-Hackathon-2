@@ -63,6 +63,11 @@ def test_map_sysmon_network():
     assert d["dst_ip"] == "52.84.23.17" and d["src_internal"] is True
 
 
+def test_sysmon_network_skips_loopback():
+    for dst in ("127.0.0.1", "::1"):
+        assert map_sysmon_network(_xml(3, {"DestinationIp": dst}), TS) is None
+
+
 def test_mappers_ignore_other_events():
     assert map_process(_xml(5, {"CommandLine": "x"}), TS) is None
     assert map_sysmon_network(_xml(1, {"DestinationIp": "1.2.3.4"}), TS) is None
