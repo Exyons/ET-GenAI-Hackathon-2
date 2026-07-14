@@ -85,7 +85,8 @@ def test_status_shape():
                          "baseline_ready", "fleet", "pipeline"}
     assert set(body["fleet"]) == {"hosts", "by_type", "series", "rate_epm"}
     assert set(body["pipeline"]) == {"stats", "activity", "window_seconds",
-                                     "process_baseline_size", "detectors"}
+                                     "process_baseline_size", "detectors",
+                                     "models", "attribution_error"}
 
 
 def test_baseline_reset_requires_token_and_warms_up():

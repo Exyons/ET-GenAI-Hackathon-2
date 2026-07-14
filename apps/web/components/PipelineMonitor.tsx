@@ -8,16 +8,19 @@ const STAGE_CLS: Record<string, string> = {
   attribution: "st-attr",
 };
 
-function Stage({ name, state, lines }: { name: string; state?: string; lines: [string, string][] }) {
+function Stage({ name, state, tone, lines, error }: {
+  name: string; state?: string; tone?: "err"; lines: [string, string][]; error?: string | null;
+}) {
   return (
     <div className="stage">
       <div className="stage-head">
         <span className="stage-name">{name}</span>
-        {state && <span className="stage-state mono">{state}</span>}
+        {state && <span className={`stage-state mono${tone === "err" ? " err" : ""}`}>{state}</span>}
       </div>
       {lines.map(([k, v]) => (
         <div key={k} className="stage-line mono"><span className="k">{k}</span><span className="v">{v}</span></div>
       ))}
+      {error && <div className="stage-err mono" title={error}>{error}</div>}
       <span className="stage-arrow" aria-hidden>▸</span>
     </div>
   );
@@ -65,11 +68,15 @@ export function PipelineMonitor({ status }: { status: Status | null }) {
           ["open incidents", String(status?.incident_count ?? 0)],
           ["high-confidence", String(status?.high_confidence_count ?? 0)],
         ]} />
-        <Stage name="Attribute · LLM" state={(s.attribution_failed ?? 0) > 0 && (s.attributed ?? 0) === 0 ? "OFFLINE" : "READY"} lines={[
-          ["ATT&CK mapped", String(s.attributed ?? 0)],
-          ["failed", String(s.attribution_failed ?? 0)],
-          ["grounded RAG", "air-gapped"],
-        ]} />
+        <Stage name="Attribute · LLM"
+          state={p?.attribution_error ? "ERROR" : "READY"}
+          tone={p?.attribution_error ? "err" : undefined}
+          error={p?.attribution_error}
+          lines={[
+            ["chat / embed", p ? `${p.models.chat} · ${p.models.embed}` : "—"],
+            ["ATT&CK mapped", String(s.attributed ?? 0)],
+            ["failed", String(s.attribution_failed ?? 0)],
+          ]} />
       </div>
       <div className="pipelog">
         {(p?.activity ?? []).length === 0 ? (
