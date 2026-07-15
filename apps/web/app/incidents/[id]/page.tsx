@@ -109,24 +109,52 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
         <div className="panel">
           <h2>ATT&amp;CK attribution <span className="hint">— grounded RAG</span></h2>
           <div className="pad">
+            <p className="attr-intro">
+              The local model read this incident&apos;s fused timeline and mapped it to MITRE ATT&amp;CK —
+              the standard catalogue of adversary techniques. Every technique below is <b>grounded</b>:
+              cited from doctrine retrieved for this incident, never invented.
+            </p>
+
+            {a.explanation ? (
+              <div className="assessment">
+                <div className="assessment-head">Analyst assessment</div>
+                <p>{a.explanation}</p>
+              </div>
+            ) : a.techniques.length > 0 ? (
+              <div className="assessment muted">
+                <div className="assessment-head">Analyst assessment</div>
+                <p>Awaiting the local model&apos;s written assessment. Techniques below are mapped from retrieval.</p>
+              </div>
+            ) : null}
+
             {a.techniques.length > 0 ? (
-              a.techniques.map((t) => (
-                <div className="tech" key={t.id}>
-                  <div className="id">{t.id}</div>
-                  <div><div className="nm">{t.name}</div><div className="tac">tactic · {t.tactic}</div></div>
-                </div>
-              ))
+              <div className="techlist">
+                <div className="techlist-head">Mapped techniques <span className="hint">— what the attacker did</span></div>
+                {a.techniques.map((t) => (
+                  <div className="tech" key={t.id}>
+                    <div className="id">{t.id}</div>
+                    <div className="tbody">
+                      <div className="nm">{t.name}</div>
+                      <div className="tac">tactic · {t.tactic}</div>
+                      {t.description && <div className="tdesc">{t.description}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p style={{ color: "var(--haze)", fontSize: 13 }}>No attribution for this incident.</p>
             )}
 
             {a.grounded && <div className="grounded">✓ grounded — every technique cited from the retrieved ATT&amp;CK set</div>}
-            {a.explanation && <p className="explain">{a.explanation}</p>}
 
             {a.predicted_next && (
               <div className="next">
                 <div className="lbl">Predicted next tactic</div>
                 <div className="val">{[...new Set(d.timeline.map((e) => e.phase))].slice(-1)[0]?.replace(/_/g, "-")} → <b>{a.predicted_next}</b></div>
+                <div className="next-why">
+                  Learned from how ATT&amp;CK tactics commonly chain across intrusions — this is the attacker&apos;s
+                  most likely next move. Prioritise detection and threat-hunting for <b>{a.predicted_next}</b> activity now.
+                </div>
               </div>
             )}
           </div>
