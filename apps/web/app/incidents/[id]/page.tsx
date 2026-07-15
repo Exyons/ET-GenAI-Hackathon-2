@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { IpChip } from "../../../components/IpChip";
 import { ResponsePanel } from "../../../components/ResponsePanel";
 import { TopBar } from "../../../components/TopBar";
 import { getIncident, type EventView, type IncidentDetail } from "../../../lib/api";
@@ -23,6 +24,15 @@ function clock(iso: string): string {
   return new Date(iso).toISOString().slice(11, 19);
 }
 
+function Detail({ e }: { e: EventView }) {
+  // make the destination IP clickable for offline network enrichment
+  if (e.dst_ip && e.detail.includes(e.dst_ip)) {
+    const [before, after] = e.detail.split(e.dst_ip);
+    return <b>{before}<IpChip ip={e.dst_ip} />{after}</b>;
+  }
+  return <b>{e.detail}</b>;
+}
+
 function TimelineEvent({ e, hot }: { e: EventView; hot: boolean }) {
   return (
     <div className={`evt${hot ? " hot" : ""}`}>
@@ -30,7 +40,7 @@ function TimelineEvent({ e, hot }: { e: EventView; hot: boolean }) {
       <span className="node" />
       <div className="card">
         <div className="src">{SOURCE_LABEL[e.source] ?? e.source}</div>
-        <div className="desc">{e.actor ? `${e.actor} · ` : ""}<b>{e.detail}</b></div>
+        <div className="desc">{e.actor ? `${e.actor} · ` : ""}<Detail e={e} /></div>
         <span className={`phase ${e.phase}`}>{e.phase.replace(/_/g, " ")}</span>
       </div>
     </div>
@@ -79,10 +89,12 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
+      <ResponsePanel incidentId={s.id} />
+
       <div className="grid">
         <div className="panel">
-          <h2>Fused timeline <span className="hint">— one entity · {s.source_count} sensors</span></h2>
-          <div className="spine">
+          <h2>Fused timeline <span className="hint">— one entity · {s.source_count} sensors · {d.timeline.length} events</span></h2>
+          <div className="spine spine-scroll">
             <div className="rail" />
             {d.timeline.map((e, idx) => (
               <TimelineEvent key={idx} e={e} hot={idx === d.timeline.length - 1} />
@@ -120,8 +132,6 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
           </div>
         </div>
       </div>
-
-      <ResponsePanel incidentId={s.id} />
 
       <Link href="/" className="back">◂ back to command view</Link>
     </main>

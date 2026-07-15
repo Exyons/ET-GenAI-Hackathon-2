@@ -24,7 +24,7 @@ def _detail(e: CanonicalEvent) -> str:
 def event_view(e: CanonicalEvent) -> EventView:
     return EventView(
         timestamp=e.timestamp, event_type=e.event_type, phase=killchain_phase(e),
-        source=e.source, actor=actor_of(e), detail=_detail(e),
+        source=e.source, actor=actor_of(e), detail=_detail(e), dst_ip=e.dst_ip,
     )
 
 

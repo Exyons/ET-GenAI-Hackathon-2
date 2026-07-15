@@ -31,6 +31,7 @@ class Fleet:
         self.by_type: Counter = Counter()
         self._buckets: dict[int, Counter] = {}
         self.tape: deque = deque(maxlen=TAPE_SIZE)
+        self.flows: deque = deque(maxlen=600)   # raw network flows for IP enrichment
 
     def _host(self, name: str, now: float) -> dict:
         return self.hosts.setdefault(name, {
@@ -71,6 +72,12 @@ class Fleet:
             entry = {**event_view(e).model_dump(mode="json"), "host": host, "flagged": flagged}
             self.tape.append(entry)
             added.append(entry)
+            if e.event_type == "network_flow" and e.dst_ip:
+                self.flows.append({
+                    "ts": e.timestamp.isoformat(), "dst_ip": e.dst_ip, "src_host": e.src_host,
+                    "src_internal": e.src_internal, "bytes": e.bytes, "duration": e.duration,
+                    "flagged": flagged,
+                })
         self._prune(bucket)
         return added
 

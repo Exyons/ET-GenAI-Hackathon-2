@@ -201,3 +201,22 @@ def test_action_gate_lifecycle_over_http():
 
 def test_action_result_requires_token():
     assert client.post("/api/actions/act-nope/result", json={"ran": False}).status_code == 401
+
+
+def test_playbook_catalog_has_context():
+    cat = client.get("/api/playbooks").json()
+    assert "isolate_host" in cat
+    assert cat["isolate_host"]["what"] and cat["isolate_host"]["impact"]
+    assert cat["snapshot"]["reversible"] is True
+
+
+def test_network_enrichment_aggregates_flows():
+    client.post("/api/ingest", json=_json(_benign()), headers=TOKEN)
+    client.post("/api/ingest", json=_json(_attack()), headers=TOKEN)
+    d = client.get("/api/network/52.84.23.17").json()
+    assert d["klass"] == "public" and d["scope"] == "external"
+    assert d["flow_count"] >= 1 and "C553" in d["hosts"]
+    assert d["any_flagged"] is True
+    # the timeline event now carries the dst_ip for the UI to make clickable
+    detail = client.get("/api/incidents/inc-c553").json()
+    assert any(e["dst_ip"] == "52.84.23.17" for e in detail["timeline"])
