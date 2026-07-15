@@ -52,6 +52,7 @@ export type TapeEvent = {
   host: string;
   flagged: boolean;
   incident?: string;
+  dst_ip?: string | null;
 };
 
 export type PipelineActivity = { t: string; stage: string; msg: string };
@@ -98,6 +99,33 @@ export type EventView = {
   source: string;
   actor: string | null;
   detail: string;
+  dst_ip: string | null;
+};
+
+export type PlaybookInfo = { title: string; reversible: boolean; what: string; impact: string };
+
+export type NetworkFlow = {
+  ts: string;
+  dst_ip: string;
+  src_host: string | null;
+  src_internal: boolean | null;
+  bytes: number | null;
+  duration: number | null;
+  flagged: boolean;
+};
+
+export type NetworkDetail = {
+  ip: string;
+  klass: string;
+  label: string;
+  scope: string;
+  flow_count: number;
+  hosts: string[];
+  total_bytes: number;
+  first_seen: string | null;
+  last_seen: string | null;
+  any_flagged: boolean;
+  flows: NetworkFlow[];
 };
 
 export type TechniqueView = { id: string; name: string; tactic: string };
@@ -156,7 +184,7 @@ export type ResponseAction = {
 
 export const PLAYBOOK_TITLE: Record<string, string> = {
   isolate_host: "Isolate host",
-  block_ip: "Block C2 address",
+  block_ip: "Block address",
   disable_account: "Disable account",
   kill_process: "Kill process",
   snapshot: "Snapshot / forensics",
@@ -189,6 +217,8 @@ export const getFlaggedEvents = () => get<TapeEvent[]>("/api/events/flagged");
 export const getIncidentEvents = (high = false) =>
   get<TapeEvent[]>(`/api/events/incidents${high ? "?high=true" : ""}`);
 
+export const getPlaybooks = () => get<Record<string, PlaybookInfo>>("/api/playbooks");
+export const getNetworkDetail = (ip: string) => get<NetworkDetail>(`/api/network/${encodeURIComponent(ip)}`);
 export const getActions = (incident?: string) =>
   get<ResponseAction[]>(`/api/actions${incident ? `?incident=${encodeURIComponent(incident)}` : ""}`);
 export const approveAction = (id: string, arm: boolean) =>

@@ -132,6 +132,31 @@ def _require_action(aid: str):
     return a
 
 
+@router.get("/playbooks")
+def playbooks_catalog() -> dict:
+    from prahari.live.playbooks import CATALOG
+    return {k: {"title": v["title"], "reversible": v["reversible"],
+                "what": v["what"], "impact": v["impact"]} for k, v in CATALOG.items()}
+
+
+@router.get("/network/{ip}")
+def network_detail(ip: str) -> dict:
+    from prahari.live.netinfo import classify
+    flows = [f for f in pipeline.fleet.flows if f["dst_ip"] == ip]
+    hosts = sorted({f["src_host"] for f in flows if f["src_host"]})
+    times = [f["ts"] for f in flows]
+    return {
+        "ip": ip, **classify(ip),
+        "flow_count": len(flows),
+        "hosts": hosts,
+        "total_bytes": sum(f["bytes"] or 0 for f in flows),
+        "first_seen": min(times) if times else None,
+        "last_seen": max(times) if times else None,
+        "any_flagged": any(f["flagged"] for f in flows),
+        "flows": sorted(flows, key=lambda f: f["ts"], reverse=True)[:50],
+    }
+
+
 @router.get("/actions")
 def list_actions(incident: str | None = None) -> list[dict]:
     items = [asdict(a) for a in action_store.list()]
