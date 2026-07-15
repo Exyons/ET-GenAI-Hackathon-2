@@ -47,13 +47,17 @@ def to_summary(incident: Incident) -> IncidentSummary:
 
 
 def _attribution(incident: Incident) -> AttributionView:
+    from prahari import config
+    from prahari.attribute.corpus import descriptions
+
     data = ATTRIBUTIONS.get(incident_id(incident))
     if not data:
         return AttributionView(technique_ids=[], techniques=[], explanation="",
                                grounded=False, predicted_next="")
+    descs = descriptions(config.CORPUS_PATH)
     return AttributionView(
         technique_ids=data["technique_ids"],
-        techniques=[TechniqueView(**t) for t in data["techniques"]],
+        techniques=[TechniqueView(**t, description=descs.get(t["id"], "")) for t in data["techniques"]],
         explanation=data["explanation"], grounded=data["grounded"],
         predicted_next=data["predicted_next"],
     )

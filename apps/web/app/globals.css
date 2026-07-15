@@ -358,18 +358,37 @@ a.kpi.drill:hover { background: #1a2536; }
 .converge .k b { color: var(--phosphor); }
 .converge .sub { font-family: var(--font-mono); font-size: 11px; color: var(--haze); margin-top: 3px; }
 
-.tech { display: flex; gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px dashed var(--line); }
+.attr-intro { font-size: 12px; color: var(--haze); line-height: 1.6; margin: 0 0 14px; }
+.attr-intro b { color: var(--paper); }
+
+/* analyst assessment — the prominent LLM narrative */
+.assessment { margin: 0 0 16px; padding: 14px 16px; border: 1px solid rgba(216, 180, 254, 0.32);
+  border-left: 3px solid var(--violet); border-radius: 4px; background: rgba(168, 120, 220, 0.07); }
+.assessment-head { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--violet);
+  font-weight: 600; margin-bottom: 8px; }
+.assessment p { margin: 0; font-size: 14px; line-height: 1.62; color: var(--paper); }
+.assessment.muted { border-color: var(--line); border-left-color: var(--line); background: var(--ink-2); }
+.assessment.muted .assessment-head { color: var(--haze); }
+.assessment.muted p { color: var(--haze); font-style: italic; font-size: 12.5px; }
+
+.techlist-head { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--haze);
+  font-weight: 600; margin-bottom: 4px; }
+.techlist-head .hint { letter-spacing: 0.02em; text-transform: none; color: var(--phosphor-dim);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; }
+.tech { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
 .tech:last-child { border-bottom: 0; }
-.tech .id { font-family: var(--font-mono); font-size: 13px; color: var(--phosphor); min-width: 92px; }
-.tech .nm { font-size: 13.5px; }
+.tech .id { font-family: var(--font-mono); font-size: 13px; color: var(--phosphor); }
+.tech .nm { font-size: 13.5px; font-weight: 500; }
 .tech .tac { font-family: var(--font-mono); font-size: 10.5px; color: var(--haze); margin-top: 2px; }
+.tech .tdesc { font-size: 12px; color: var(--haze); line-height: 1.5; margin-top: 6px; }
 .grounded { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
   font-family: var(--font-mono); font-size: 11px; color: var(--calm); }
-.explain { font-size: 12.5px; color: var(--haze); line-height: 1.55; margin-top: 12px; }
 .next { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 3px; background: var(--ink-2); }
 .next .lbl { font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--haze); }
-.next .val { font-family: var(--font-mono); font-size: 14px; margin-top: 5px; }
+.next .val { font-family: var(--font-mono); font-size: 15px; margin-top: 5px; }
 .next .val b { color: var(--phosphor); }
+.next-why { font-size: 11.5px; color: var(--haze); line-height: 1.55; margin-top: 8px; }
+.next-why b { color: var(--phosphor); }
 .respond { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px;
   padding: 13px 15px; border: 1px solid rgba(245, 166, 35, 0.4); border-radius: 3px; background: rgba(245, 166, 35, 0.05); }
 .respond .a b { color: var(--phosphor); font-family: var(--font-mono); }

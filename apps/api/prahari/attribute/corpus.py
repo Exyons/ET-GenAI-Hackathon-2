@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,3 +27,31 @@ def load_corpus(path: str | Path) -> list[TechniqueDoc]:
         )
         for d in raw
     ]
+
+
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]+\)")   # [name](url) → name
+_CITATION = re.compile(r"\(Citation:[^)]*\)")
+
+
+def short_description(text: str, max_len: int = 280) -> str:
+    """First 1-2 sentences of an ATT&CK description — enough to say what the
+    technique is, without dumping the full doctrine paragraph or its markup."""
+    text = _CITATION.sub("", _MD_LINK.sub(r"\1", text))
+    text = re.sub(r"\s+", " ", text).strip()
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    out = " ".join(parts[:2]).strip()
+    return (out[: max_len].rstrip() + "…") if len(out) > max_len else out
+
+
+_DESC_CACHE: dict[str, dict[str, str]] = {}
+
+
+def descriptions(path: str | Path) -> dict[str, str]:
+    """id → short description, cached. Missing/unreadable corpus → empty map."""
+    key = str(path)
+    if key not in _DESC_CACHE:
+        try:
+            _DESC_CACHE[key] = {d.id: short_description(d.description) for d in load_corpus(path)}
+        except Exception:
+            _DESC_CACHE[key] = {}
+    return _DESC_CACHE[key]
