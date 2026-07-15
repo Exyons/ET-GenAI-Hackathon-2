@@ -141,12 +141,46 @@ def _proc_user(pid: str) -> str:
         return "?"
 
 
-def _scan_proc(poll: float = 0.5) -> Iterator[dict]:
+PROC_DEDUP_SECONDS = float(os.environ.get("PRAHARI_PROC_DEDUP_SECONDS", "60"))
+_DIGITS = re.compile(r"\d+")
+
+
+def proc_signature(user: str, cmd: str) -> str:
+    # collapse numeric args so a polling loop (cpuUsage.sh <pid>, sleep 1, …)
+    # shares one signature regardless of the changing pid
+    return f"{user}|{_DIGITS.sub('#', cmd)}"
+
+
+class _Deduper:
+    """Suppress a repeated signature within a TTL. A genuinely new command, or the
+    same one after the window, still passes — this only silences tight repeats."""
+
+    def __init__(self, ttl: float) -> None:
+        self.ttl = ttl
+        self._seen: dict[str, float] = {}
+
+    def fresh(self, sig: str, now: float) -> bool:
+        # stores the last time we EMITTED — a command repeating every second still
+        # surfaces once per TTL (a heartbeat), rather than vanishing from the tape
+        last = self._seen.get(sig)
+        if last is not None and now - last < self.ttl:
+            return False
+        if len(self._seen) > 4096:  # bound memory on churny hosts
+            self._seen = {k: t for k, t in self._seen.items() if now - t < self.ttl}
+        self._seen[sig] = now
+        return True
+
+
+def _scan_proc(poll: float = 0.5, dedup_seconds: float = PROC_DEDUP_SECONDS) -> Iterator[dict]:
     """No auditd → poll /proc for new processes. Zero setup; misses very
-    short-lived commands but catches normal desktop/server activity."""
+    short-lived commands but catches normal desktop/server activity. Tight repeats
+    of the same command (polling loops, editor CPU probes) are deduped so they
+    don't flood the tape."""
     prev = {p for p in os.listdir("/proc") if p.isdigit()}
+    dedup = _Deduper(dedup_seconds)
     while True:
         time.sleep(poll)
+        now = time.monotonic()
         cur = {p for p in os.listdir("/proc") if p.isdigit()}
         for pid in sorted(cur - prev, key=int):
             try:
@@ -154,8 +188,11 @@ def _scan_proc(poll: float = 0.5) -> Iterator[dict]:
                     cmd = f.read().replace(b"\x00", b" ").decode(errors="replace").strip()
             except OSError:
                 continue  # process already gone
-            if cmd:
-                yield map_proc(pid, cmd, _proc_user(pid), _now())
+            if not cmd:
+                continue
+            user = _proc_user(pid)
+            if dedup.fresh(proc_signature(user, cmd), now):
+                yield map_proc(pid, cmd, user, _now())
         prev = cur
 
 

