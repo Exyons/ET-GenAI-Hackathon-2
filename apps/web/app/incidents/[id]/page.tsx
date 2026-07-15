@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ResponsePanel } from "../../../components/ResponsePanel";
 import { TopBar } from "../../../components/TopBar";
 import { getIncident, type EventView, type IncidentDetail } from "../../../lib/api";
 
@@ -116,17 +117,11 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
                 <div className="val">{[...new Set(d.timeline.map((e) => e.phase))].slice(-1)[0]?.replace(/_/g, "-")} → <b>{a.predicted_next}</b></div>
               </div>
             )}
-
-            {s.is_true_positive && (
-              <div className="respond">
-                <div className="a">Recommend: <b>isolate host {s.entity}</b></div>
-                <span className="gate">Human gate</span>
-                <button type="button">Approve ▸</button>
-              </div>
-            )}
           </div>
         </div>
       </div>
+
+      <ResponsePanel incidentId={s.id} />
 
       <Link href="/" className="back">◂ back to command view</Link>
     </main>

@@ -17,8 +17,10 @@ import urllib.error
 import urllib.request
 
 if platform.system() == "Windows":
+    import responder_windows as responder
     import sources_windows as src
 else:
+    import responder_linux as responder
     import sources_linux as src
 
 PRAHARI_URL = os.environ.get("PRAHARI_URL", "http://localhost:8000").rstrip("/")
@@ -27,6 +29,11 @@ SOURCES = [s.strip() for s in os.environ.get("PRAHARI_SOURCES", "auth,process,ne
 BATCH_MAX = int(os.environ.get("PRAHARI_BATCH_MAX", "50"))
 FLUSH_SECONDS = float(os.environ.get("PRAHARI_FLUSH_SECONDS", "2"))
 HEARTBEAT_SECONDS = float(os.environ.get("PRAHARI_HEARTBEAT_SECONDS", "10"))
+# response layer: poll for approved actions and execute them. Destructive
+# (armed) actions ONLY run when this is explicitly enabled — default off.
+ACTIONS_ENABLED = os.environ.get("PRAHARI_ACTIONS", "true").lower() == "true"
+ALLOW_ARMED = os.environ.get("PRAHARI_ALLOW_ARMED", "false").lower() == "true"
+ACTION_POLL_SECONDS = float(os.environ.get("PRAHARI_ACTION_POLL_SECONDS", "3"))
 
 _TAILERS = {"auth": src.tail_auth, "process": src.tail_process, "network": src.tail_network}
 ACTIVE = [n for n in SOURCES if n in _TAILERS]
@@ -78,11 +85,48 @@ def _post(batch: list[dict]) -> None:
             delay = min(delay * 2, 30)
 
 
+def _get_json(path: str):
+    req = urllib.request.Request(f"{PRAHARI_URL}{path}",
+                                 headers={"Authorization": f"Bearer {TOKEN}"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
+def _post_json(path: str, body: dict) -> None:
+    req = urllib.request.Request(f"{PRAHARI_URL}{path}", data=json.dumps(body).encode(),
+                                 method="POST",
+                                 headers={"Content-Type": "application/json",
+                                          "Authorization": f"Bearer {TOKEN}"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        r.read()
+
+
+def _responder_loop() -> None:
+    from urllib.parse import quote
+    while True:
+        try:
+            actions = _get_json(f"/api/actions/pending?host={quote(src.HOSTNAME)}")
+            for a in actions:
+                result = responder.run(a, ALLOW_ARMED)
+                _post_json(f"/api/actions/{a['id']}/result", result)
+                verb = "executed" if result.get("ran") else "dry-run"
+                print(f"[prahari] action {a['id']} {a['playbook']}→{a['target']} · {verb}", flush=True)
+        except (urllib.error.URLError, TimeoutError):
+            pass  # API down; the ingest loop already logs connectivity
+        except Exception as e:
+            print(f"[prahari] responder error: {e}", flush=True)
+        time.sleep(ACTION_POLL_SECONDS)
+
+
 def main() -> None:
     q: queue.Queue = queue.Queue()
     for name in ACTIVE:
         threading.Thread(target=_pump, args=(name, q), daemon=True).start()
         print(f"[prahari] tailing {name}", flush=True)
+    if ACTIONS_ENABLED:
+        threading.Thread(target=_responder_loop, daemon=True).start()
+        print(f"[prahari] response layer on · armed execution "
+              f"{'ENABLED' if ALLOW_ARMED else 'disabled (dry-run only)'}", flush=True)
     print(f"[prahari] shipping to {PRAHARI_URL}/api/ingest as host {src.HOSTNAME}", flush=True)
 
     batch: list[dict] = []

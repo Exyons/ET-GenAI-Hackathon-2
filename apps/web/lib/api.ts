@@ -39,6 +39,7 @@ export type Status = {
   baseline_ready: boolean;
   fleet: FleetSnapshot;
   pipeline: PipelineInfo;
+  response: ResponseStats;
 };
 
 export type TapeEvent = {
@@ -63,6 +64,16 @@ export type PipelineInfo = {
   detectors: { auth: boolean; network: boolean };
   models: { chat: string; embed: string };
   attribution_error: string | null;
+};
+
+export type ResponseStats = {
+  total: number;
+  pending: number;
+  approved: number;
+  executed: number;
+  failed: number;
+  rejected: number;
+  reverted: number;
 };
 
 export type IncidentSummary = {
@@ -113,8 +124,57 @@ export type Metrics = {
   false_positive_rate: number;
 };
 
+export type ActionStatus =
+  | "pending_approval" | "approved" | "dispatched" | "executed" | "failed" | "rejected" | "reverted";
+
+export type ActionResult = {
+  ran: boolean;
+  dry_run: boolean;
+  command?: string;
+  stdout?: string;
+  exit_code?: number | null;
+  error?: string | null;
+  note?: string;
+};
+
+export type ResponseAction = {
+  id: string;
+  incident_id: string;
+  host: string;
+  playbook: string;
+  target: string;
+  reason: string;
+  reversible: boolean;
+  status: ActionStatus;
+  mode: "dry_run" | "armed";
+  undo: boolean;
+  created_at: string;
+  approver: string | null;
+  result: ActionResult | null;
+  revert_of: string | null;
+};
+
+export const PLAYBOOK_TITLE: Record<string, string> = {
+  isolate_host: "Isolate host",
+  block_ip: "Block C2 address",
+  disable_account: "Disable account",
+  kill_process: "Kill process",
+  snapshot: "Snapshot / forensics",
+};
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -128,3 +188,12 @@ export const getRecentEvents = (limit = 100) => get<TapeEvent[]>(`/api/events/re
 export const getFlaggedEvents = () => get<TapeEvent[]>("/api/events/flagged");
 export const getIncidentEvents = (high = false) =>
   get<TapeEvent[]>(`/api/events/incidents${high ? "?high=true" : ""}`);
+
+export const getActions = (incident?: string) =>
+  get<ResponseAction[]>(`/api/actions${incident ? `?incident=${encodeURIComponent(incident)}` : ""}`);
+export const approveAction = (id: string, arm: boolean) =>
+  post<ResponseAction>(`/api/actions/${id}/approve`, { approver: "operator", arm });
+export const rejectAction = (id: string) =>
+  post<ResponseAction>(`/api/actions/${id}/reject`, { approver: "operator" });
+export const revertAction = (id: string) =>
+  post<ResponseAction>(`/api/actions/${id}/revert`, { approver: "operator" });

@@ -70,6 +70,31 @@ python prahari_agent.py
 Without Sysmon, run auth-only or auth+process(4688): `$env:PRAHARI_SOURCES = "auth,process"`.
 The agent picks `sources_windows.py` automatically via `platform.system()`.
 
+## Response layer (containment)
+
+The agent also polls `GET /api/actions/pending` for **approved** response actions
+and executes them, reporting the result back. It is a **triple gate** — nothing
+destructive runs unless all three hold:
+
+1. an operator **approves** the recommendation in the dashboard (human gate), AND
+2. approves it **armed** (not the default dry-run), AND
+3. the agent was started with `PRAHARI_ALLOW_ARMED=true`.
+
+Otherwise the agent reports the exact command it *would* run without touching the
+host. Read-only playbooks (`snapshot`) always execute — they cannot harm.
+
+```bash
+# default: response on, armed execution OFF (dry-run only) — safe to run anywhere
+sudo -E python3 prahari_agent.py
+
+# opt in to real containment (nftables isolate/block, usermod lock, …):
+PRAHARI_ALLOW_ARMED=true sudo -E python3 prahari_agent.py
+```
+Env: `PRAHARI_ACTIONS` (default true), `PRAHARI_ALLOW_ARMED` (default false),
+`PRAHARI_ACTION_POLL_SECONDS`. Armed playbooks need root and `nftables`.
+Playbooks: isolate_host, block_ip, disable_account, kill_process, snapshot —
+all reversible except kill_process, via the **Revert** button.
+
 ## Tests
 ```bash
 python -m pytest collectors/tests -q     # pure parser tests, no live system needed

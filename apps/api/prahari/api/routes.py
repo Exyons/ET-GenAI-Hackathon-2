@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from prahari import config
 from prahari.api.demo import demo_incidents, incident_id
@@ -11,7 +13,7 @@ from prahari.api.models import IncidentDetail, IncidentSummary, MetricsView
 from prahari.api.serialize import event_view, to_detail, to_summary
 from prahari.correlate.killchain import target_of
 from prahari.live.fleet import TAPE_SIZE
-from prahari.live.state import bus, pipeline
+from prahari.live.state import action_store, bus, pipeline
 from prahari.schema import CanonicalEvent
 
 router = APIRouter(prefix="/api")
@@ -96,6 +98,75 @@ def baseline_reset(_: None = Depends(require_token)) -> dict:
     # the ONLY path back into warmup — a deliberate operator action, not a process restart
     pipeline.reset_baseline()
     return {"mode": pipeline.mode}
+
+
+# ---- response / actions ----
+# Operator endpoints (approve/reject/revert) are unauthenticated like the rest of
+# the read API — the true safety gate is that the AGENT needs the bearer token to
+# fetch and execute, actions default to dry_run, and armed execution additionally
+# requires PRAHARI_ALLOW_ARMED on the agent. Agent endpoints (pending/result) are
+# bearer-gated: that is the command channel.
+class ApproveBody(BaseModel):
+    approver: str = "operator"
+    arm: bool = False
+
+
+class DecisionBody(BaseModel):
+    approver: str = "operator"
+
+
+class ResultBody(BaseModel):
+    ran: bool = False
+    dry_run: bool = True
+    command: str = ""
+    stdout: str = ""
+    exit_code: int | None = None
+    error: str | None = None
+    note: str = ""
+
+
+def _require_action(aid: str):
+    a = action_store.get(aid)
+    if a is None:
+        raise HTTPException(status_code=404, detail="action not found")
+    return a
+
+
+@router.get("/actions")
+def list_actions(incident: str | None = None) -> list[dict]:
+    items = [asdict(a) for a in action_store.list()]
+    return [a for a in items if a["incident_id"] == incident] if incident else items
+
+
+@router.post("/actions/{aid}/approve")
+def approve_action(aid: str, body: ApproveBody) -> dict:
+    _require_action(aid)
+    return asdict(action_store.approve(aid, body.approver, body.arm))
+
+
+@router.post("/actions/{aid}/reject")
+def reject_action(aid: str, body: DecisionBody) -> dict:
+    _require_action(aid)
+    return asdict(action_store.reject(aid, body.approver))
+
+
+@router.post("/actions/{aid}/revert")
+def revert_action(aid: str, body: DecisionBody) -> dict:
+    a = _require_action(aid)
+    if a.status != "executed" or not a.reversible or (a.result or {}).get("dry_run", True):
+        raise HTTPException(status_code=409, detail="only an executed, armed, reversible action can be reverted")
+    return asdict(action_store.revert(aid, body.approver))
+
+
+@router.get("/actions/pending")
+def pending_actions(host: str, _: None = Depends(require_token)) -> list[dict]:
+    return [asdict(a) for a in action_store.pending_for_host(host)]
+
+
+@router.post("/actions/{aid}/result")
+def action_result(aid: str, body: ResultBody, _: None = Depends(require_token)) -> dict:
+    _require_action(aid)
+    return asdict(action_store.report(aid, body.model_dump()))
 
 
 @router.get("/stream")
