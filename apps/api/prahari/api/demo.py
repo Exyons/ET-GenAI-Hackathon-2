@@ -52,9 +52,13 @@ ATTRIBUTIONS: dict[str, dict] = {
             {"id": "T1071.002", "name": "Application Layer Protocol", "tactic": "command-and-control"},
         ],
         "explanation": (
-            "NTLM remote login to a critical host (lateral movement), followed by whoami "
-            "process discovery, then an outbound beacon to a new external address — a "
-            "textbook low-and-slow intrusion fused from three sensors."
+            "An operator authenticated into the critical host C553 over NTLM (T1021.006) — "
+            "valid credentials, so no signature fired. Seconds later a process-discovery "
+            "command enumerated the host (T1057), and an outbound session opened to a "
+            "previously-unseen external address (T1071.002). Individually each step is "
+            "ordinary; fused across three sensors they form a hands-on-keyboard intrusion "
+            "in its early stages — the actor has a foothold and is orienting before acting "
+            "on the objective. Contain C553 now, before data staging or exfiltration begins."
         ),
         "grounded": True,
         "predicted_next": "exfiltration",

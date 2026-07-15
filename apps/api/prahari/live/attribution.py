@@ -5,7 +5,7 @@ from collections.abc import Callable
 from prahari import config
 from prahari.api.models import AttributionView, TechniqueView
 from prahari.attribute.attributor import Attributor
-from prahari.attribute.corpus import load_corpus
+from prahari.attribute.corpus import load_corpus, short_description
 from prahari.attribute.ollama import ollama_chat, ollama_embed
 from prahari.attribute.predictor import ATTACK_TACTIC_PRIOR, TacticPredictor
 from prahari.attribute.retriever import Retriever
@@ -45,7 +45,8 @@ def build_attribute_fn(
             doc = doc_by_id.get(tid)
             if doc is not None:
                 tactic = doc.tactics[0] if doc.tactics else ""
-                techniques.append(TechniqueView(id=tid, name=doc.name, tactic=tactic))
+                techniques.append(TechniqueView(id=tid, name=doc.name, tactic=tactic,
+                                                description=short_description(doc.description)))
         last_phase = killchain_phase(incident.timeline()[-1])
         tactic = _PHASE_TACTIC.get(last_phase, last_phase)
         nxt = predictor.predict_next(tactic, k=1)

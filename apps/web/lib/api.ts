@@ -155,7 +155,7 @@ export type NetworkDetail = {
   flows: NetworkFlow[];
 };
 
-export type TechniqueView = { id: string; name: string; tactic: string };
+export type TechniqueView = { id: string; name: string; tactic: string; description: string };
 
 export type AttributionView = {
   technique_ids: string[];

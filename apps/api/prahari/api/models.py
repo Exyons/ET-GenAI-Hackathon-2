@@ -19,6 +19,7 @@ class TechniqueView(BaseModel):
     id: str
     name: str
     tactic: str
+    description: str = ""
 
 
 class AttributionView(BaseModel):
