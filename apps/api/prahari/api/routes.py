@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from prahari import config
@@ -75,6 +75,44 @@ def events_flagged() -> list[dict]:
     return [{**event_view(e).model_dump(mode="json"),
              "host": target_of(e) or e.src_host or "unknown", "flagged": True}
             for e in pipeline.recent]
+
+
+_EXPORT_COLS = ["timestamp", "host", "event_type", "phase", "source", "actor", "detail", "dst_ip", "flagged"]
+
+
+def _csv_cell(v) -> str:
+    s = "" if v is None else str(v)
+    return f'"{s.replace(chr(34), chr(34) * 2)}"' if any(c in s for c in ',"\n') else s
+
+
+@router.get("/events/export")
+def export_events(view: str = "recent", format: str = "json") -> Response:
+    if view == "flagged":
+        rows = [{**event_view(e).model_dump(mode="json"),
+                 "host": target_of(e) or e.src_host or "unknown", "flagged": True}
+                for e in pipeline.recent]
+    else:
+        rows = list(pipeline.fleet.tape)
+    fname = f"prahari-telemetry-{view}"
+    if format == "csv":
+        lines = [",".join(_EXPORT_COLS)]
+        lines += [",".join(_csv_cell(r.get(c)) for c in _EXPORT_COLS) for r in rows]
+        return Response("\n".join(lines), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
+    return Response(json.dumps(rows, indent=2), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}.json"'})
+
+
+@router.get("/summary")
+def summary(refresh: bool = False) -> dict:
+    from prahari import config
+    from prahari.attribute.ollama import ollama_chat
+    from prahari.live.summary import get_summary
+
+    def chat(prompt: str) -> str:
+        return ollama_chat(prompt, model=config.CHAT_MODEL, host=config.OLLAMA_HOST)
+
+    return {**get_summary(pipeline, chat, force=refresh), "model": config.CHAT_MODEL}
 
 
 @router.get("/events/incidents")

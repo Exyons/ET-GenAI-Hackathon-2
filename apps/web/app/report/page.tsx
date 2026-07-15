@@ -1,17 +1,17 @@
 import Link from "next/link";
 
 import { PrintButton } from "../../components/PrintButton";
+import { SummaryReport } from "../../components/SummaryReport";
 import {
-  getActions, getFlaggedEvents, getIncident, getIncidents, getMetrics, getStatus,
+  getActions, getIncident, getIncidents, getMetrics, getStatus,
   PLAYBOOK_TITLE,
   type IncidentDetail, type IncidentSummary, type Metrics, type ResponseAction,
-  type Status, type TapeEvent,
+  type Status,
 } from "../../lib/api";
 import { clock, shortSource } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
-const FLAGGED_CAP = 60;
 const PHASE_LABEL: Record<string, string> = {
   lateral_movement: "Lateral movement",
   discovery: "Discovery",
@@ -32,10 +32,9 @@ function trunc(s: string, max = 160): string {
 }
 
 export default async function ReportPage() {
-  const [status, incidents, flagged, metrics, actions] = await Promise.all([
+  const [status, incidents, metrics, actions] = await Promise.all([
     safe<Status>(getStatus()),
     safe<IncidentSummary[]>(getIncidents()),
-    safe<TapeEvent[]>(getFlaggedEvents()),
     safe<Metrics>(getMetrics()),
     safe<ResponseAction[]>(getActions()),
   ]);
@@ -47,8 +46,6 @@ export default async function ReportPage() {
 
   const generated = new Date().toISOString().replace("T", " ").slice(0, 19);
   const fleet = status?.fleet;
-  const phaseCounts = new Map<string, number>();
-  for (const e of flagged ?? []) phaseCounts.set(e.phase, (phaseCounts.get(e.phase) ?? 0) + 1);
 
   if (!status) {
     return (
@@ -73,20 +70,7 @@ export default async function ReportPage() {
             {status.baseline_ready ? " · baseline frozen" : ""} · sovereign / air-gapped</p>
         </header>
 
-        <section>
-          <h2>1 · Posture</h2>
-          <table>
-            <tbody>
-              <tr><th>Events ingested</th><td>{status.events_seen.toLocaleString()}</td>
-                <th>Rate (last min)</th><td>{fleet?.rate_epm ?? 0} events</td></tr>
-              <tr><th>Flagged in window</th><td>{status.flagged_recent}</td>
-                <th>Incidents (live)</th><td>{status.incident_count} · {status.high_confidence_count} high-confidence</td></tr>
-              <tr><th>Kill chain (flagged)</th>
-                <td colSpan={3}>{Object.entries(PHASE_LABEL).map(([k, l]) =>
-                  `${l}: ${phaseCounts.get(k) ?? 0}`).join(" · ")}</td></tr>
-            </tbody>
-          </table>
-        </section>
+        <SummaryReport />
 
         <section>
           <h2>2 · Sensor fleet ({fleet?.hosts.length ?? 0} hosts)</h2>
@@ -161,34 +145,7 @@ export default async function ReportPage() {
         </section>
 
         <section>
-          <h2>4 · Flagged events in correlation window ({flagged?.length ?? 0}{(flagged?.length ?? 0) > FLAGGED_CAP ? `, latest ${FLAGGED_CAP} shown` : ""})</h2>
-          {(flagged?.length ?? 0) === 0 ? (
-            <p className="quiet-note">No flagged events in the window.</p>
-          ) : (
-            <table>
-              <colgroup>
-                <col className="c-time" /><col className="c-host" /><col className="c-src" />
-                <col className="c-actor" /><col /><col className="c-phase" />
-              </colgroup>
-              <thead><tr><th>Time</th><th>Host</th><th>Source</th><th>Actor</th><th>Event</th><th>Phase</th></tr></thead>
-              <tbody>
-                {(flagged ?? []).slice(-FLAGGED_CAP).reverse().map((e, i) => (
-                  <tr key={i}>
-                    <td className="mono">{clock(e.timestamp)}</td>
-                    <td className="mono">{e.host}</td>
-                    <td>{shortSource(e.source)}</td>
-                    <td className="mono">{e.actor ?? "—"}</td>
-                    <td>{trunc(e.detail)}</td>
-                    <td>{PHASE_LABEL[e.phase] ?? e.phase}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        <section>
-          <h2>5 · Response actions ({actions?.length ?? 0})</h2>
+          <h2>4 · Response actions ({actions?.length ?? 0})</h2>
           {(actions?.length ?? 0) === 0 ? (
             <p className="quiet-note">No response actions recommended.</p>
           ) : (
