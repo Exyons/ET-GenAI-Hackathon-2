@@ -39,11 +39,17 @@ def summarize_incident(incident: Incident) -> str:
     return "\n".join(lines)
 
 
-_PROMPT = """You are a SOC analyst mapping an intrusion to MITRE ATT&CK.
-For EACH step in the incident timeline, choose the single candidate technique ID that
-best matches that step's action. Make sure lateral movement (a remote login), the
-executed command, and any outbound command-and-control traffic are each mapped when
-present. Then explain briefly.
+_PROMPT = """You are a senior SOC analyst mapping an intrusion to MITRE ATT&CK for an
+incident responder who must act on it.
+
+First, for EACH step in the incident timeline choose the single candidate technique ID
+that best matches that step's action (map the lateral movement / remote login, the
+executed commands, and any outbound command-and-control traffic when present).
+
+Then write an ASSESSMENT: how the individual steps connect into one operation, what the
+attacker is trying to achieve, why this is concerning, and the current stage of the
+intrusion. Reference the techniques by ID. Be concrete and specific to THIS incident —
+4-6 sentences, plain prose, no markdown, no filler or generic advice.
 
 Respond ONLY as JSON: {{"technique_ids": ["T####", ...], "explanation": "..."}}
 Use ONLY technique IDs from the candidate list below.
