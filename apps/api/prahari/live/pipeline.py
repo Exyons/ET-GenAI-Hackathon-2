@@ -21,6 +21,7 @@ from prahari.live.baseline import (
     screen_warmup,
 )
 from prahari.live.fleet import Fleet
+from prahari.live.playbooks import recommend
 
 
 def norm_cmd(cmd: str) -> str:
@@ -35,13 +36,15 @@ ATTR_RETRY_SECONDS = 60.0
 
 
 class LivePipeline:
-    def __init__(self, warmup_seconds, window_seconds, quantile, attribute_fn, bus, state_dir):
+    def __init__(self, warmup_seconds, window_seconds, quantile, attribute_fn, bus, state_dir,
+                 action_store=None):
         self.warmup_seconds = warmup_seconds
         self.window_seconds = window_seconds
         self.quantile = quantile
         self.attribute_fn = attribute_fn
         self.bus = bus
         self.state_dir = state_dir
+        self.action_store = action_store
 
         self.mode = "warmup"
         self._t0: float | None = None
@@ -238,6 +241,13 @@ class LivePipeline:
                 self._log("correlator", f"{iid} → HIGH-CONFIDENCE · {inc.entity} · "
                                         f"{len(inc.events)} events / {len(inc.sources)} sensors / "
                                         f"{len(inc.phases)} phases")
+                if self.action_store is not None:
+                    recs = recommend(inc)
+                    for r in recs:
+                        self.action_store.create(iid, inc.entity, r["playbook"], r["target"],
+                                                 r["reason"], r["reversible"])
+                    self._log("responder", f"{iid} → {len(recs)} response actions recommended "
+                                            "· awaiting approval (human gate)")
                 new_hc.append((iid, inc))
         return new_hc
 
@@ -294,5 +304,9 @@ class LivePipeline:
                               "network": self.net_sentinel is not None},
                 "models": {"chat": config.CHAT_MODEL, "embed": config.EMBED_MODEL},
                 "attribution_error": self.attr_error,
+            },
+            "response": self.action_store.stats() if self.action_store is not None else {
+                "total": 0, "pending": 0, "approved": 0, "executed": 0,
+                "failed": 0, "rejected": 0, "reverted": 0,
             },
         }

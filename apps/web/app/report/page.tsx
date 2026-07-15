@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { PrintButton } from "../../components/PrintButton";
 import {
-  getFlaggedEvents, getIncident, getIncidents, getMetrics, getStatus,
-  type IncidentDetail, type IncidentSummary, type Metrics, type Status, type TapeEvent,
+  getActions, getFlaggedEvents, getIncident, getIncidents, getMetrics, getStatus,
+  PLAYBOOK_TITLE,
+  type IncidentDetail, type IncidentSummary, type Metrics, type ResponseAction,
+  type Status, type TapeEvent,
 } from "../../lib/api";
 import { clock, shortSource } from "../../lib/format";
 
@@ -30,11 +32,12 @@ function trunc(s: string, max = 160): string {
 }
 
 export default async function ReportPage() {
-  const [status, incidents, flagged, metrics] = await Promise.all([
+  const [status, incidents, flagged, metrics, actions] = await Promise.all([
     safe<Status>(getStatus()),
     safe<IncidentSummary[]>(getIncidents()),
     safe<TapeEvent[]>(getFlaggedEvents()),
     safe<Metrics>(getMetrics()),
+    safe<ResponseAction[]>(getActions()),
   ]);
   const details: IncidentDetail[] = [];
   for (const i of (incidents ?? []).slice(0, 8)) {
@@ -177,6 +180,33 @@ export default async function ReportPage() {
                     <td className="mono">{e.actor ?? "—"}</td>
                     <td>{trunc(e.detail)}</td>
                     <td>{PHASE_LABEL[e.phase] ?? e.phase}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section>
+          <h2>5 · Response actions ({actions?.length ?? 0})</h2>
+          {(actions?.length ?? 0) === 0 ? (
+            <p className="quiet-note">No response actions recommended.</p>
+          ) : (
+            <table>
+              <colgroup>
+                <col className="c-time" /><col /><col /><col className="c-host" />
+                <col className="c-phase" /><col className="c-phase" />
+              </colgroup>
+              <thead><tr><th>Time</th><th>Playbook</th><th>Target</th><th>Status</th><th>Mode</th><th>Approver</th></tr></thead>
+              <tbody>
+                {(actions ?? []).map((a) => (
+                  <tr key={a.id}>
+                    <td className="mono">{clock(a.created_at)}</td>
+                    <td>{PLAYBOOK_TITLE[a.playbook] ?? a.playbook}{a.undo ? " (revert)" : ""}</td>
+                    <td className="mono">{a.target}</td>
+                    <td>{a.status.replace(/_/g, " ")}{a.result ? (a.result.dry_run ? " · dry-run" : " · live") : ""}</td>
+                    <td>{a.mode}</td>
+                    <td className="mono">{a.approver ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
