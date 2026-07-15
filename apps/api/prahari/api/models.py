@@ -12,6 +12,7 @@ class EventView(BaseModel):
     source: str
     actor: str | None = None
     detail: str
+    dst_ip: str | None = None
 
 
 class TechniqueView(BaseModel):
