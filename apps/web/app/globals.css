@@ -408,6 +408,44 @@ a.kpi.drill:hover { background: #1a2536; }
 .report footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #d7dde8;
   color: #5b6b82; font-size: 10.5px; }
 
+/* AI summary + charts (report, light) */
+.rep-summary-head { display: flex; align-items: center; justify-content: space-between; }
+.rep-regen { font-size: 11px; font-family: var(--font-mono); color: #33415c; background: #eef1f6;
+  border: 1px solid #d7dde8; border-radius: 3px; padding: 5px 10px; cursor: pointer; }
+.rep-regen:hover { background: #e2e7f0; }
+.rep-narrative { margin: 4px 0 14px; }
+.rep-narrative p { margin: 0; font-size: 13.5px; line-height: 1.62; color: #16202e; }
+.rep-narrative .rep-muted { color: #5b6b82; font-style: italic; }
+.rep-byline { margin-top: 6px; font-family: var(--font-mono); font-size: 10px; color: #8a97ab; }
+.rep-posture { width: 100%; margin: 0 0 14px; }
+.rep-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 12px; }
+.rep-chart { break-inside: avoid; }
+.rep-chart-title { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #33415c;
+  font-weight: 600; margin-bottom: 8px; }
+.rep-bar { display: grid; grid-template-columns: 92px 1fr 30px; gap: 8px; align-items: center;
+  font-size: 11px; padding: 2px 0; }
+.rep-bar .rbk { color: #33415c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-bar .rbt { height: 9px; background: #eef1f6; border-radius: 2px; overflow: hidden; }
+.rep-bar .rbf { display: block; height: 100%; border-radius: 2px; min-width: 2px; }
+.rep-bar .rbn { text-align: right; font-family: var(--font-mono); color: #16202e; }
+@media (max-width: 720px) { .rep-charts { grid-template-columns: 1fr; } }
+@media print { .rep-charts { grid-template-columns: repeat(3, 1fr); } .rep-chart { break-inside: avoid; } }
+
+/* telemetry export menu */
+.exportwrap { position: relative; }
+.exportbtn { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 5px 10px; border: 1px solid var(--line); border-radius: 2px; background: var(--ink-2);
+  color: var(--haze); cursor: pointer; }
+.exportbtn:hover { color: var(--paper); border-color: var(--phosphor-dim); }
+.exportmenu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; background: var(--ink-2);
+  border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  min-width: 190px; padding: 5px; }
+.exportmenu a { display: block; padding: 7px 10px; font-family: var(--font-mono); font-size: 11px;
+  color: var(--paper); border-radius: 2px; }
+.exportmenu a:hover { background: rgba(36, 50, 74, 0.5); color: var(--phosphor); }
+.exportmenu .grp { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--haze);
+  padding: 6px 10px 3px; }
+
 @media print {
   html, body { background: #fff; }
   .no-print { display: none !important; }
