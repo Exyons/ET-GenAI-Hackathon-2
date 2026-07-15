@@ -6,16 +6,17 @@ const STAGE_CLS: Record<string, string> = {
   sentinel: "st-sent",
   correlator: "st-corr",
   attribution: "st-attr",
+  responder: "st-resp",
 };
 
 function Stage({ name, state, tone, lines, error }: {
-  name: string; state?: string; tone?: "err"; lines: [string, string][]; error?: string | null;
+  name: string; state?: string; tone?: "err" | "warn"; lines: [string, string][]; error?: string | null;
 }) {
   return (
     <div className="stage">
       <div className="stage-head">
         <span className="stage-name">{name}</span>
-        {state && <span className={`stage-state mono${tone === "err" ? " err" : ""}`}>{state}</span>}
+        {state && <span className={`stage-state mono${tone ? ` ${tone}` : ""}`}>{state}</span>}
       </div>
       {lines.map(([k, v]) => (
         <div key={k} className="stage-line mono"><span className="k">{k}</span><span className="v">{v}</span></div>
@@ -29,6 +30,7 @@ function Stage({ name, state, tone, lines, error }: {
 export function PipelineMonitor({ status }: { status: Status | null }) {
   const p = status?.pipeline;
   const s = p?.stats ?? {};
+  const resp = status?.response;
   const fleet = status?.fleet;
   const agents = fleet?.hosts ?? [];
   const tailing = agents.reduce((n, h) =>
@@ -42,7 +44,7 @@ export function PipelineMonitor({ status }: { status: Status | null }) {
   return (
     <section className="panel pipemon">
       <h2>
-        Pipeline <span className="hint">— collect → screen → detect → correlate → attribute</span>
+        Pipeline <span className="hint">— collect → screen → detect → correlate → attribute → respond</span>
         <span className="spacer" />
         <span className="hint mono">live · updates every 2s</span>
       </h2>
@@ -76,6 +78,14 @@ export function PipelineMonitor({ status }: { status: Status | null }) {
             ["chat / embed", p ? `${p.models.chat} · ${p.models.embed}` : "—"],
             ["ATT&CK mapped", String(s.attributed ?? 0)],
             ["failed", String(s.attribution_failed ?? 0)],
+          ]} />
+        <Stage name="Respond · gate"
+          state={(resp?.pending ?? 0) > 0 ? `${resp?.pending} PENDING` : "READY"}
+          tone={(resp?.pending ?? 0) > 0 ? "warn" : undefined}
+          lines={[
+            ["recommended", String(resp?.total ?? 0)],
+            ["awaiting approval", String(resp?.pending ?? 0)],
+            ["executed / reverted", `${resp?.executed ?? 0} / ${resp?.reverted ?? 0}`],
           ]} />
       </div>
       <div className="pipelog">
