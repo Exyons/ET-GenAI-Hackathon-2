@@ -8,6 +8,7 @@ import {
   type EventType, type TapeEvent,
 } from "../lib/api";
 import { subscribe } from "../lib/stream";
+import { ExportMenu } from "./ExportMenu";
 import { TapeList } from "./TapeList";
 import { TopBar } from "./TopBar";
 
@@ -111,6 +112,7 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
             className="qfilter mono" type="search" placeholder="filter — command, user, host, phase…"
             value={q} onChange={(e) => setQ(e.target.value)}
           />
+          <ExportMenu />
         </div>
         <div className="tapefull-scroll">
           <TapeList events={shown} />

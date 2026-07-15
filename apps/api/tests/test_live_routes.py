@@ -203,6 +203,26 @@ def test_action_result_requires_token():
     assert client.post("/api/actions/act-nope/result", json={"ran": False}).status_code == 401
 
 
+def test_events_export_json_and_csv():
+    client.post("/api/ingest", json=_json(_benign()), headers=TOKEN)
+    j = client.get("/api/events/export?view=recent&format=json")
+    assert j.status_code == 200 and j.headers["content-type"].startswith("application/json")
+    assert "attachment" in j.headers["content-disposition"] and len(j.json()) == 18
+    c = client.get("/api/events/export?view=recent&format=csv")
+    assert c.status_code == 200 and c.headers["content-type"].startswith("text/csv")
+    assert c.text.splitlines()[0].startswith("timestamp,host,event_type")
+
+
+def test_summary_returns_digest_without_blocking():
+    client.post("/api/ingest", json=_json(_benign()), headers=TOKEN)
+    client.post("/api/ingest", json=_json(_attack()), headers=TOKEN)
+    s = client.get("/api/summary").json()
+    assert "digest" in s and s["digest"]["incident_count"] >= 1
+    assert set(s["digest"]["phase_counts"]) == {"lateral_movement", "discovery",
+                                                "execution", "command_and_control"}
+    assert "model" in s and "narrative" in s  # narrative may be empty (LLM absent) — never blocks
+
+
 def test_playbook_catalog_has_context():
     cat = client.get("/api/playbooks").json()
     assert "isolate_host" in cat

@@ -77,6 +77,33 @@ export type ResponseStats = {
   reverted: number;
 };
 
+export type SummaryDigest = {
+  mode: string;
+  baseline_ready: boolean;
+  events_seen: number;
+  rate_epm: number;
+  hosts: number;
+  hosts_online: number;
+  flagged_recent: number;
+  incident_count: number;
+  high_confidence_count: number;
+  phase_counts: Record<string, number>;
+  flag_reasons: Record<string, number>;
+  response: ResponseStats;
+  top_incidents: { entity: string; id: string; score: number; high_confidence: boolean; sources: number; phases: number }[];
+  attribution_error: string | null;
+};
+
+export type SituationSummary = {
+  digest: SummaryDigest;
+  narrative: string;
+  generated_at: string | null;
+  stale: boolean;
+  generating: boolean;
+  error: string | null;
+  model: string;
+};
+
 export type IncidentSummary = {
   id: string;
   entity: string;
@@ -217,6 +244,10 @@ export const getFlaggedEvents = () => get<TapeEvent[]>("/api/events/flagged");
 export const getIncidentEvents = (high = false) =>
   get<TapeEvent[]>(`/api/events/incidents${high ? "?high=true" : ""}`);
 
+export const getSummary = (refresh = false) =>
+  get<SituationSummary>(`/api/summary${refresh ? "?refresh=true" : ""}`);
+export const exportUrl = (view: "recent" | "flagged", format: "json" | "csv") =>
+  `${API_BASE}/api/events/export?view=${view}&format=${format}`;
 export const getPlaybooks = () => get<Record<string, PlaybookInfo>>("/api/playbooks");
 export const getNetworkDetail = (ip: string) => get<NetworkDetail>(`/api/network/${encodeURIComponent(ip)}`);
 export const getActions = (incident?: string) =>
