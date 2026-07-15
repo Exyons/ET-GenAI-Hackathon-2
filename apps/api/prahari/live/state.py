@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from prahari import config
+from prahari.live.actions import ActionStore
 from prahari.live.attribution import build_attribute_fn
 from prahari.live.bus import EventBus
 from prahari.live.pipeline import LivePipeline
 
 # Shared, app-lifetime singletons. Imported by api.routes and main.py.
 bus = EventBus()
+action_store = ActionStore(bus)
 
 # Attribution is built lazily on the first high-confidence incident so importing this
 # module (at app startup) never touches Ollama. If Ollama/corpus is unavailable the
@@ -28,4 +30,5 @@ pipeline = LivePipeline(
     attribute_fn=_attribute,
     bus=bus,
     state_dir=config.STATE_DIR,
+    action_store=action_store,
 )

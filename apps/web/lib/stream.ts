@@ -1,9 +1,10 @@
-import { API_BASE, type IncidentSummary, type TapeEvent } from "./api";
+import { API_BASE, type IncidentSummary, type ResponseAction, type TapeEvent } from "./api";
 
 export type StreamEvent =
   | ({ type: "incident" } & IncidentSummary)
   | { type: "telemetry"; events: TapeEvent[] }
   | { type: "attribution"; id: string; [k: string]: unknown }
+  | ({ type: "action" } & ResponseAction)
   | { type: "warning"; reason: string; [k: string]: unknown };
 
 // Subscribe to the live SSE stream. EventSource auto-reconnects on drop.
