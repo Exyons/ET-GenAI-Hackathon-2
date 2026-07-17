@@ -6,6 +6,7 @@ import {
   approveAction, getActions, getPlaybooks, PLAYBOOK_TITLE, rejectAction, revertAction,
   type PlaybookInfo, type ResponseAction,
 } from "../lib/api";
+import { Help } from "./Help";
 import { IpChip } from "./IpChip";
 
 const READ_ONLY = new Set(["snapshot"]);
@@ -61,7 +62,7 @@ function ActionCard({ a, info, onChange }: {
           {info?.title ?? PLAYBOOK_TITLE[a.playbook] ?? a.playbook}
           {IP_TARGET.has(a.playbook) ? <IpChip ip={a.target} /> : <span className="act-target mono">{a.target}</span>}
           {readOnly
-            ? <span className="act-rev">read-only</span>
+            ? <span className="act-rev">read-only<Help align="right" text="Read-only actions only collect evidence — they can't harm the host, so they run immediately when approved. There is no separate Arm step (that gate exists only for destructive actions)." wide /></span>
             : a.reversible ? <span className="act-rev">reversible</span> : <span className="act-irrev">irreversible</span>}
           {a.undo && <span className="act-rev">undo</span>}
         </div>
@@ -126,7 +127,9 @@ export function ResponsePanel({ incidentId }: { incidentId: string }) {
   return (
     <div className="panel respanel">
       <h2>
-        Response <span className="hint">— recommended containment · human gate</span>
+        Response
+        <Help wide text="Recommended containment for this incident. Nothing runs until you approve at the human gate. Approve · dry-run reports the exact command without touching the host; Arm & approve executes for real (and still needs the agent started with PRAHARI_ALLOW_ARMED=true). Read-only actions have no arm step." />
+        <span className="hint">— containment · human gate</span>
         <span className="spacer" />
         {pending > 0 && <span className="pill hi">{pending} awaiting approval</span>}
       </h2>
@@ -138,10 +141,9 @@ export function ResponsePanel({ incidentId }: { incidentId: string }) {
         ) : (
           <>
             <p className="gate-note">
-              Nothing runs until you approve. <b>Approve · dry-run</b> reports the exact command without
-              touching the host; <b>Arm &amp; approve</b> executes for real (and still requires the agent to
-              be started with <span className="mono">PRAHARI_ALLOW_ARMED=true</span>). Read-only snapshots
-              just collect evidence.
+              Nothing runs until you approve. <b>Approve · dry-run</b> reports the command without touching
+              the host; <b>Arm &amp; approve</b> executes for real. Read-only actions skip the arm step —
+              they only collect evidence.
             </p>
             <div className="act-list">
               {actions.map((a) => <ActionCard key={a.id} a={a} info={catalog[a.playbook]} onChange={load} />)}
