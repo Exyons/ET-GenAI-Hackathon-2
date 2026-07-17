@@ -39,6 +39,16 @@ EMBED_MODEL = os.environ.get("PRAHARI_EMBED_MODEL", "embeddinggemma")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 CORPUS_PATH = os.environ.get("CORPUS_PATH", str(_REPO_ROOT / "corpus" / "attack_techniques.json"))
 
-# Offline threat-intel datasets (blocklists, provider ranges, geo) — see
-# threatintel/README.md. Nothing is fetched at runtime; only these files are read.
+# Threat-intel datasets (blocklists, provider ranges, geo) — see threatintel/README.md.
+# The bundled files always load; on top of that, blocklist FEEDS are refreshed on a
+# schedule so reputation data doesn't go stale. Set THREATINTEL_FEEDS empty to run
+# fully offline — the bundled + operator files still work. A feed that can't be
+# reached is skipped, never fatal, so an air-gapped box degrades gracefully.
 THREATINTEL_DIR = os.environ.get("THREATINTEL_DIR", str(_REPO_ROOT / "threatintel"))
+THREATINTEL_FEEDS = [
+    u.strip() for u in os.environ.get(
+        "THREATINTEL_FEEDS",
+        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset",
+    ).split(",") if u.strip()
+]
+THREATINTEL_REFRESH_HOURS = float(os.environ.get("THREATINTEL_REFRESH_HOURS", "12"))

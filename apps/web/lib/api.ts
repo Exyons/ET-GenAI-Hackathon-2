@@ -256,6 +256,18 @@ export const getSummary = (refresh = false) =>
 export const exportUrl = (view: "recent" | "flagged", format: "json" | "csv") =>
   `${API_BASE}/api/events/export?view=${view}&format=${format}`;
 export const getPlaybooks = () => get<Record<string, PlaybookInfo>>("/api/playbooks");
+
+export type ThreatIntelStatus = {
+  last_update: string | null;
+  configured_feeds: string[];
+  refresh_hours: number;
+  blocklist_entries: number;
+  blocklist_sources: string[];
+  feeds: Record<string, { ok: boolean; entries: number; error: string | null; at: string }>;
+};
+export const getThreatIntel = () => get<ThreatIntelStatus>("/api/threatintel");
+export const addToBlocklist = (ip: string, note = "") =>
+  post<ThreatIntelStatus>("/api/threatintel/blocklist", { ip, note });
 export const getNetworkDetail = (ip: string) => get<NetworkDetail>(`/api/network/${encodeURIComponent(ip)}`);
 export const getActions = (incident?: string) =>
   get<ResponseAction[]>(`/api/actions${incident ? `?incident=${encodeURIComponent(incident)}` : ""}`);

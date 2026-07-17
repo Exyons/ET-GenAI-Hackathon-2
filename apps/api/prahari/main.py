@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from prahari import config
 from prahari.api.routes import router
 from prahari.live.state import pipeline
 
@@ -18,13 +19,27 @@ async def _ticker() -> None:
             pass
 
 
+async def _feed_refresher() -> None:
+    # keep blocklist feeds fresh; skip entirely when no feeds are configured
+    if not config.THREATINTEL_FEEDS:
+        return
+    from prahari.live import feeds
+    while True:
+        try:
+            await asyncio.to_thread(feeds.refresh)
+        except Exception:
+            pass
+        await asyncio.sleep(max(0.1, config.THREATINTEL_REFRESH_HOURS) * 3600)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(_ticker())
+    tasks = [asyncio.create_task(_ticker()), asyncio.create_task(_feed_refresher())]
     try:
         yield
     finally:
-        task.cancel()
+        for t in tasks:
+            t.cancel()
 
 
 app = FastAPI(title="Prahari", version="0.1.0", lifespan=lifespan)
