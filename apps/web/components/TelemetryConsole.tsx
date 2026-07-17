@@ -10,6 +10,7 @@ import {
 import { subscribe } from "../lib/stream";
 import { ExportMenu } from "./ExportMenu";
 import { TapeList } from "./TapeList";
+import { TelemetrySummary } from "./TelemetrySummary";
 import { TopBar } from "./TopBar";
 
 export type TelemetryView = "recent" | "flagged" | "incidents" | "high";
@@ -38,6 +39,7 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
   const [host, setHost] = useState("all");
   const [type, setType] = useState<"all" | EventType>("all");
   const [q, setQ] = useState("");
+  const [summary, setSummary] = useState(false);
 
   useEffect(() => {
     const load = () => {
@@ -112,11 +114,19 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
             className="qfilter mono" type="search" placeholder="filter — command, user, host, phase…"
             value={q} onChange={(e) => setQ(e.target.value)}
           />
+          <button type="button" className={`tab mono view-toggle${summary ? " on" : ""}`}
+            aria-pressed={summary} onClick={() => setSummary((v) => !v)}>
+            {summary ? "▤ TAPE" : "◫ SUMMARY"}
+          </button>
           <ExportMenu />
         </div>
-        <div className="tapefull-scroll">
-          <TapeList events={shown} />
-        </div>
+        {summary ? (
+          <TelemetrySummary events={shown} />
+        ) : (
+          <div className="tapefull-scroll">
+            <TapeList events={shown} />
+          </div>
+        )}
       </section>
       <Link href="/" className="back">◂ back to command view</Link>
     </>

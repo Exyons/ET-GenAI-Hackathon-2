@@ -109,5 +109,23 @@ def context_for(ip: str) -> str:
 
 def stats() -> dict:
     s = _get()
-    return {"blocklist_entries": len(s.block), "provider_ranges": len(s.providers),
-            "geo_ranges": len(s.geo)}
+    sources = sorted({src for _, src in s.block})
+    return {"blocklist_entries": len(s.block), "blocklist_sources": sources,
+            "provider_ranges": len(s.providers), "geo_ranges": len(s.geo)}
+
+
+def add_blocklist_entry(cidr: str, note: str = "", source: str = "operator") -> None:
+    """Append an operator-supplied address/CIDR to a local blocklist file and
+    refresh the cache. This is how a user sets their own blacklist — the entry
+    persists in threatintel/<source>.txt and survives restarts."""
+    net = ipaddress.ip_network(cidr.strip(), strict=False)  # raises ValueError if bad
+    d = Path(config.THREATINTEL_DIR)
+    d.mkdir(parents=True, exist_ok=True)
+    line = str(net) + (f"  # {note.strip()}" if note.strip() else "")
+    f = d / f"{source}.txt"
+    existing = f.read_text().splitlines() if f.is_file() else []
+    if any(ln.split("#", 1)[0].strip() == str(net) for ln in existing):
+        return  # already listed — no duplicate
+    with f.open("a") as fh:
+        fh.write(line + "\n")
+    reset_cache()

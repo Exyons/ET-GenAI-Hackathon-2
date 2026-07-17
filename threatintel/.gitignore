@@ -1,0 +1,4 @@
+# Runtime data — fetched feeds and operator-added entries. The bundled
+# blocklist.txt / providers.json / geo.csv are committed; these are not.
+feed-*.txt
+operator.txt

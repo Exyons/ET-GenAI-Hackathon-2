@@ -210,6 +210,33 @@ def network_detail(ip: str) -> dict:
     }
 
 
+class BlocklistBody(BaseModel):
+    ip: str
+    note: str = ""
+
+
+@router.get("/threatintel")
+def threatintel_status() -> dict:
+    from prahari.live import feeds
+    return feeds.status()
+
+
+@router.post("/threatintel/refresh")
+def threatintel_refresh() -> dict:
+    from prahari.live import feeds
+    return feeds.refresh()
+
+
+@router.post("/threatintel/blocklist")
+def threatintel_add(body: BlocklistBody) -> dict:
+    from prahari.live import feeds, threatintel
+    try:
+        threatintel.add_blocklist_entry(body.ip, body.note)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"not a valid IP or CIDR: {body.ip}")
+    return feeds.status()
+
+
 @router.get("/actions")
 def list_actions(incident: str | None = None) -> list[dict]:
     items = [asdict(a) for a in action_store.list()]

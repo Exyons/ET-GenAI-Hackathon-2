@@ -42,8 +42,8 @@ export function FleetPanel({ hosts, tape }: { hosts: FleetHost[]; tape: TapeEven
       <h2>
         Sensor fleet
         <span className="spacer" />
-        <Link href="/telemetry" className="hint mono navhint">full telemetry ▸</Link>
         <span className="hint mono">{online}/{hosts.length} reporting</span>
+        <Link href="/telemetry" className="telem-btn mono">Full telemetry ▸</Link>
       </h2>
       {hosts.length === 0 ? (
         <div className="empty">

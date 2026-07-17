@@ -246,3 +246,22 @@ def test_network_enrichment_aggregates_flows():
     # the timeline event now carries the dst_ip for the UI to make clickable
     detail = client.get("/api/incidents/inc-c553").json()
     assert any(e["dst_ip"] == "52.84.23.17" for e in detail["timeline"])
+
+
+def test_threatintel_status_and_operator_add(tmp_path, monkeypatch):
+    from prahari import config as cfg
+    from prahari.live import threatintel
+
+    monkeypatch.setattr(cfg, "THREATINTEL_DIR", str(tmp_path))
+    threatintel.reset_cache()
+
+    st = client.get("/api/threatintel").json()
+    assert "configured_feeds" in st and "blocklist_entries" in st
+
+    # operator adds their own bad address, then it enriches as listed
+    r = client.post("/api/threatintel/blocklist", json={"ip": "77.88.99.0/24", "note": "analyst"})
+    assert r.status_code == 200
+    assert client.get("/api/network/77.88.99.5").json()["reputation"]["listed"] is True
+
+    assert client.post("/api/threatintel/blocklist", json={"ip": "bogus"}).status_code == 400
+    threatintel.reset_cache()
