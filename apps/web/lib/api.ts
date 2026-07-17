@@ -146,6 +146,13 @@ export type NetworkDetail = {
   klass: string;
   label: string;
   scope: string;
+  provider: string;
+  provider_type: string;
+  country: string;
+  city: string;
+  reputation: { listed: boolean; sources: string[] };
+  verdict: string;
+  severity: "good" | "neutral" | "bad" | string;
   flow_count: number;
   hosts: string[];
   total_bytes: number;

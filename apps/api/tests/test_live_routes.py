@@ -237,6 +237,12 @@ def test_network_enrichment_aggregates_flows():
     assert d["klass"] == "public" and d["scope"] == "external"
     assert d["flow_count"] >= 1 and "C553" in d["hosts"]
     assert d["any_flagged"] is True
+    # offline threat-intel enrichment from the seed dataset
+    assert d["provider"] == "Amazon CloudFront" and d["country"] == "US"
+    assert d["reputation"]["listed"] is True and d["severity"] == "bad"
+    assert d["verdict"].startswith("Malicious")
+    clean = client.get("/api/network/10.0.0.9").json()
+    assert clean["severity"] == "good" and clean["reputation"]["listed"] is False
     # the timeline event now carries the dst_ip for the UI to make clickable
     detail = client.get("/api/incidents/inc-c553").json()
     assert any(e["dst_ip"] == "52.84.23.17" for e in detail["timeline"])

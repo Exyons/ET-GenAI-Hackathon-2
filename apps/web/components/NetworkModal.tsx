@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { getNetworkDetail, type NetworkDetail } from "../lib/api";
 import { clock, compact } from "../lib/format";
 
-const SCOPE_CLS: Record<string, string> = { external: "err", internal: "ok", local: "warn" };
+const SEV_CLS: Record<string, string> = { bad: "err", good: "ok", neutral: "warn" };
 
 function fmtBytes(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} MB`;
@@ -26,7 +26,8 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
     return () => window.removeEventListener("keydown", onKey);
   }, [ip, onClose]);
 
-  const scopeCls = d ? SCOPE_CLS[d.scope] ?? "" : "";
+  const sevCls = d ? SEV_CLS[d.severity] ?? "" : "";
+  const geo = d ? [d.city, d.country].filter(Boolean).join(", ") : "";
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -38,7 +39,7 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
             <div className="modal-eyebrow mono">NETWORK ADDRESS · OFFLINE ENRICHMENT</div>
             <h3 className="modal-title mono">{ip}</h3>
           </div>
-          {d && <span className={`stage-state mono${scopeCls ? ` ${scopeCls}` : ""}`}>{d.scope.toUpperCase()}</span>}
+          {d && <span className={`stage-state mono${sevCls ? ` ${sevCls}` : ""}`}>{d.verdict}</span>}
         </div>
 
         {err ? (
@@ -47,12 +48,15 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
           <p className="modal-about mono dim">loading…</p>
         ) : (
           <>
-            <p className="modal-about">{d.label}. Everything below is derived locally from telemetry — no external lookups, so it works fully air-gapped.</p>
+            <p className="modal-about">{d.label}. Enrichment is derived from local datasets — no external lookups, so it works fully air-gapped.</p>
+            {d.reputation.listed && (
+              <div className="rep-alert mono">⚑ Address is on {d.reputation.sources.length} blocklist{d.reputation.sources.length === 1 ? "" : "s"}: {d.reputation.sources.join(", ")}</div>
+            )}
             <div className="modal-metrics">
+              <div className="mm"><div className="mm-k">provider</div><div className="mm-v mono">{d.provider || "—"}{d.provider_type ? ` · ${d.provider_type}` : ""}</div></div>
+              <div className="mm"><div className="mm-k">location</div><div className="mm-v mono">{geo || "no GeoIP data"}</div></div>
               <div className="mm"><div className="mm-k">connections seen</div><div className="mm-v mono">{d.flow_count}</div></div>
               <div className="mm"><div className="mm-k">data out</div><div className="mm-v mono">{fmtBytes(d.total_bytes)}</div></div>
-              <div className="mm"><div className="mm-k">internal hosts</div><div className="mm-v mono">{d.hosts.length}</div></div>
-              <div className="mm"><div className="mm-k">flagged</div><div className={`mm-v mono${d.any_flagged ? " " : ""}`} style={{ color: d.any_flagged ? "var(--alert)" : undefined }}>{d.any_flagged ? "yes" : "no"}</div></div>
             </div>
             {d.hosts.length > 0 && (
               <div className="modal-activity">
