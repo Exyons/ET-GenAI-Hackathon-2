@@ -30,12 +30,17 @@ def _event_detail(e) -> str:
     return e.dest_entity or e.dst_host or e.dst_ip or ""
 
 
-def summarize_incident(incident: Incident) -> str:
+def summarize_incident(incident: Incident, ip_context=None) -> str:
     lines = [f"Incident on entity {incident.entity}. "
              f"Phases: {', '.join(sorted(incident.phases))}. Timeline:"]
     for e in incident.timeline():
         phase = killchain_phase(e)
-        lines.append(f"- {e.event_type} {phase}: {e.source_entity or ''} {_event_detail(e)}")
+        detail = _event_detail(e)
+        if ip_context and e.event_type == "network_flow" and e.dst_ip:
+            ctx = ip_context(e.dst_ip)
+            if ctx:
+                detail += f" [threat-intel: {ctx}]"
+        lines.append(f"- {e.event_type} {phase}: {e.source_entity or ''} {detail}")
     return "\n".join(lines)
 
 
@@ -63,10 +68,12 @@ CANDIDATE TECHNIQUES:
 
 
 class Attributor:
-    def __init__(self, retriever: Retriever, chat_fn: Callable[[str], str], k: int = 5) -> None:
+    def __init__(self, retriever: Retriever, chat_fn: Callable[[str], str], k: int = 5,
+                 ip_context: Callable[[str], str] | None = None) -> None:
         self.retriever = retriever
         self.chat_fn = chat_fn
         self.k = k
+        self.ip_context = ip_context
 
     def _event_queries(self, incident: Incident) -> list[str]:
         # one query per event so every kill-chain phase gets retrieval coverage,
@@ -77,7 +84,7 @@ class Attributor:
         return queries
 
     def attribute(self, incident: Incident) -> Attribution:
-        summary = summarize_incident(incident)
+        summary = summarize_incident(incident, ip_context=self.ip_context)
         # union top-k retrievals across per-event queries (keep best score per id)
         best: dict[str, tuple] = {}
         for q in self._event_queries(incident):

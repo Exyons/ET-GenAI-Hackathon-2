@@ -1,0 +1,10 @@
+# Prahari offline blocklist — one IP or CIDR per line, # for comments.
+# The filename (without .txt) is the source name shown in the dashboard.
+# This is a SEED. Drop real feeds here (as .txt files) for production, e.g.
+# abuse.ch Feodo Tracker, FireHOL level 1, Emerging Threats — downloaded once
+# on a connected host and copied into this air-gapped directory.
+#
+# Illustrative known-bad indicators (for the demo scenario):
+52.84.23.17          # demo C2 beacon used by the LANL red-team scenario
+185.220.101.0/24     # example Tor exit range flagged as high-risk
+45.155.205.0/24      # example bulletproof-hosting range
