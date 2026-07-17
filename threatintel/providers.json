@@ -1,0 +1,11 @@
+[
+  {"cidr": "52.84.0.0/15",   "provider": "Amazon CloudFront", "type": "cdn"},
+  {"cidr": "13.32.0.0/15",   "provider": "Amazon CloudFront", "type": "cdn"},
+  {"cidr": "3.0.0.0/9",      "provider": "Amazon AWS",        "type": "cloud"},
+  {"cidr": "34.64.0.0/10",   "provider": "Google Cloud",      "type": "cloud"},
+  {"cidr": "35.190.0.0/17",  "provider": "Google Cloud",      "type": "cloud"},
+  {"cidr": "20.33.0.0/16",   "provider": "Microsoft Azure",   "type": "cloud"},
+  {"cidr": "40.64.0.0/10",   "provider": "Microsoft Azure",   "type": "cloud"},
+  {"cidr": "104.16.0.0/13",  "provider": "Cloudflare",        "type": "cdn"},
+  {"cidr": "185.220.100.0/22","provider": "Tor exit relays",  "type": "anonymizer"}
+]

@@ -179,12 +179,27 @@ def playbooks_catalog() -> dict:
 
 @router.get("/network/{ip}")
 def network_detail(ip: str) -> dict:
+    from prahari.live import threatintel
     from prahari.live.netinfo import classify
+
+    info = classify(ip)
+    ti = threatintel.enrich(ip)
+    listed = ti["reputation"]["listed"]
+    if listed:
+        verdict, severity = "Malicious — on blocklist", "bad"
+    elif info["scope"] in ("internal", "local"):
+        verdict, severity = "Internal / trusted range", "good"
+    elif ti["provider"]:
+        verdict, severity = f"External — {ti['provider']}", "neutral"
+    else:
+        verdict, severity = "External — unclassified", "neutral"
+
     flows = [f for f in pipeline.fleet.flows if f["dst_ip"] == ip]
     hosts = sorted({f["src_host"] for f in flows if f["src_host"]})
     times = [f["ts"] for f in flows]
     return {
-        "ip": ip, **classify(ip),
+        "ip": ip, **info, **ti,
+        "verdict": verdict, "severity": severity,
         "flow_count": len(flows),
         "hosts": hosts,
         "total_bytes": sum(f["bytes"] or 0 for f in flows),

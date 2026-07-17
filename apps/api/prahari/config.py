@@ -38,3 +38,7 @@ CHAT_MODEL = os.environ.get("PRAHARI_CHAT_MODEL", "qwen2.5:7b")
 EMBED_MODEL = os.environ.get("PRAHARI_EMBED_MODEL", "embeddinggemma")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 CORPUS_PATH = os.environ.get("CORPUS_PATH", str(_REPO_ROOT / "corpus" / "attack_techniques.json"))
+
+# Offline threat-intel datasets (blocklists, provider ranges, geo) — see
+# threatintel/README.md. Nothing is fetched at runtime; only these files are read.
+THREATINTEL_DIR = os.environ.get("THREATINTEL_DIR", str(_REPO_ROOT / "threatintel"))

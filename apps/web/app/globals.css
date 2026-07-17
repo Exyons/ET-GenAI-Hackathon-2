@@ -515,6 +515,9 @@ a.kpi.drill:hover { background: #1a2536; }
 
 /* network enrichment modal */
 .modal.st-net-detail .modal-accent { background: var(--s-auth); }
+.rep-alert { margin: 12px 0 0; padding: 9px 12px; font-size: 11.5px; color: var(--alert);
+  border: 1px solid rgba(229, 72, 77, 0.4); border-left: 3px solid var(--alert);
+  border-radius: 3px; background: rgba(229, 72, 77, 0.08); }
 .host-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .host-chip { font-size: 11px; color: var(--paper); border: 1px solid var(--line); border-radius: 3px; padding: 2px 8px; }
 .netflows { display: flex; flex-direction: column; max-height: 190px; overflow-y: auto; }
