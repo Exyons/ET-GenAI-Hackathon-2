@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { getNetworkDetail, type NetworkDetail } from "../lib/api";
+import { addToBlocklist, getNetworkDetail, type NetworkDetail } from "../lib/api";
 import { clock, compact } from "../lib/format";
 
 const SEV_CLS: Record<string, string> = { bad: "err", good: "ok", neutral: "warn" };
@@ -16,6 +16,7 @@ function fmtBytes(n: number): string {
 export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void }) {
   const [d, setD] = useState<NetworkDetail | null>(null);
   const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -25,6 +26,15 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [ip, onClose]);
+
+  const block = async () => {
+    setBusy(true);
+    try {
+      await addToBlocklist(ip, "flagged by operator from console");
+      setD(await getNetworkDetail(ip)); // re-read so the verdict flips to Malicious
+    } catch { /* leave the current view; button stays available */ }
+    finally { setBusy(false); }
+  };
 
   const sevCls = d ? SEV_CLS[d.severity] ?? "" : "";
   const geo = d ? [d.city, d.country].filter(Boolean).join(", ") : "";
@@ -48,7 +58,7 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
           <p className="modal-about mono dim">loading…</p>
         ) : (
           <>
-            <p className="modal-about">{d.label}. Enrichment is derived from local datasets — no external lookups, so it works fully air-gapped.</p>
+            <p className="modal-about">{d.label}. Reputation is checked against local blocklists — bundled, auto-refreshed feeds, and any addresses you add — so enrichment keeps working even offline.</p>
             {d.reputation.listed && (
               <div className="rep-alert mono">⚑ Address is on {d.reputation.sources.length} blocklist{d.reputation.sources.length === 1 ? "" : "s"}: {d.reputation.sources.join(", ")}</div>
             )}
@@ -85,6 +95,15 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
         )}
 
         <div className="modal-foot">
+          {d && !d.reputation.listed && (
+            <button type="button" className="btn arm" disabled={busy} onClick={block}>
+              {busy ? "adding…" : "⚑ Add to blocklist"}
+            </button>
+          )}
+          {d && d.reputation.listed && (
+            <span className="foot-note mono">on blocklist · {d.reputation.sources.join(", ")}</span>
+          )}
+          <span className="spacer" />
           <button type="button" ref={closeRef} className="btn no" onClick={onClose}>Close</button>
         </div>
       </div>
