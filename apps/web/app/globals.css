@@ -90,9 +90,23 @@ a.kpi.drill:hover { background: #1a2536; }
 
 /* ---------- panels ---------- */
 .panel { background: var(--slate); border: 1px solid var(--line); border-radius: 3px; margin-top: 12px; min-width: 0; }
-.panel > h2 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 11px 16px;
-  font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--haze);
-  border-bottom: 1px solid var(--line); font-weight: 600; }
+.panel > h2 { display: flex; align-items: center; gap: 7px; margin: 0; padding: 12px 16px;
+  font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--paper);
+  border-bottom: 1px solid var(--line); font-weight: 700; }
+
+/* hover help — a "?" that reveals detail on demand (pure CSS) */
+.help { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+  border: 1px solid var(--line); border-radius: 50%; font-size: 9px; font-weight: 700; color: var(--haze);
+  cursor: help; position: relative; vertical-align: middle; flex: none; letter-spacing: 0; }
+.help:hover, .help:focus-visible { color: var(--ink); background: var(--phosphor); border-color: var(--phosphor); outline: none; }
+.help-bubble { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: 236px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 4px; padding: 9px 11px;
+  font-size: 11.5px; line-height: 1.5; color: var(--paper); text-align: left; letter-spacing: normal;
+  text-transform: none; font-weight: 400; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55); opacity: 0;
+  visibility: hidden; transition: opacity 0.12s; z-index: 45; pointer-events: none; }
+.help-bubble.wide { width: 320px; }
+.help-bubble.right { left: auto; right: -6px; transform: none; }
+.help:hover .help-bubble, .help:focus-visible .help-bubble { opacity: 1; visibility: visible; }
 .panel > h2 .hint { color: var(--phosphor-dim); letter-spacing: 0.04em; text-transform: none;
   font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; }
 .empty { padding: 24px 16px; color: var(--haze); font-size: 12.5px; }
@@ -358,8 +372,6 @@ a.kpi.drill:hover { background: #1a2536; }
 .converge .k b { color: var(--phosphor); }
 .converge .sub { font-family: var(--font-mono); font-size: 11px; color: var(--haze); margin-top: 3px; }
 
-.attr-intro { font-size: 12px; color: var(--haze); line-height: 1.6; margin: 0 0 14px; }
-.attr-intro b { color: var(--paper); }
 
 /* analyst assessment — the prominent LLM narrative */
 .assessment { margin: 0 0 16px; padding: 14px 16px; border: 1px solid rgba(216, 180, 254, 0.32);
@@ -373,22 +385,17 @@ a.kpi.drill:hover { background: #1a2536; }
 
 .techlist-head { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--haze);
   font-weight: 600; margin-bottom: 4px; }
-.techlist-head .hint { letter-spacing: 0.02em; text-transform: none; color: var(--phosphor-dim);
-  font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; }
 .tech { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
 .tech:last-child { border-bottom: 0; }
 .tech .id { font-family: var(--font-mono); font-size: 13px; color: var(--phosphor); }
 .tech .nm { font-size: 13.5px; font-weight: 500; }
 .tech .tac { font-family: var(--font-mono); font-size: 10.5px; color: var(--haze); margin-top: 2px; }
-.tech .tdesc { font-size: 12px; color: var(--haze); line-height: 1.5; margin-top: 6px; }
 .grounded { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
   font-family: var(--font-mono); font-size: 11px; color: var(--calm); }
 .next { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 3px; background: var(--ink-2); }
 .next .lbl { font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--haze); }
 .next .val { font-family: var(--font-mono); font-size: 15px; margin-top: 5px; }
 .next .val b { color: var(--phosphor); }
-.next-why { font-size: 11.5px; color: var(--haze); line-height: 1.55; margin-top: 8px; }
-.next-why b { color: var(--phosphor); }
 .respond { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px;
   padding: 13px 15px; border: 1px solid rgba(245, 166, 35, 0.4); border-radius: 3px; background: rgba(245, 166, 35, 0.05); }
 .respond .a b { color: var(--phosphor); font-family: var(--font-mono); }

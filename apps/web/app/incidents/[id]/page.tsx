@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { AutoRefresh } from "../../../components/AutoRefresh";
+import { Help } from "../../../components/Help";
 import { IpChip } from "../../../components/IpChip";
 import { ResponsePanel } from "../../../components/ResponsePanel";
 import { TopBar } from "../../../components/TopBar";
@@ -75,6 +77,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
   return (
     <main className="wrap">
       <TopBar />
+      <AutoRefresh />
 
       <div className="banner">
         <div>
@@ -93,7 +96,9 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
 
       <div className="grid">
         <div className="panel">
-          <h2>Fused timeline <span className="hint">— one entity · {s.source_count} sensors · {d.timeline.length} events</span></h2>
+          <h2>Fused timeline
+            <Help text="Every flagged event for this host, from all sensors, on one timeline. Correlating them is what turns unremarkable individual events into a detected incident." wide />
+            <span className="hint">— {s.source_count} sensors · {d.timeline.length} events</span></h2>
           <div className="spine spine-scroll">
             <div className="rail" />
             {d.timeline.map((e, idx) => (
@@ -107,36 +112,33 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
         </div>
 
         <div className="panel">
-          <h2>ATT&amp;CK attribution <span className="hint">— grounded RAG</span></h2>
+          <h2>ATT&amp;CK attribution
+            <Help wide align="right" text="MITRE ATT&CK is the standard catalogue of attacker techniques. The local model mapped this incident's timeline to it. Every technique is grounded — cited from doctrine retrieved for this incident, never invented." />
+          </h2>
           <div className="pad">
-            <p className="attr-intro">
-              The local model read this incident&apos;s fused timeline and mapped it to MITRE ATT&amp;CK —
-              the standard catalogue of adversary techniques. Every technique below is <b>grounded</b>:
-              cited from doctrine retrieved for this incident, never invented.
-            </p>
-
             {a.explanation ? (
               <div className="assessment">
-                <div className="assessment-head">Analyst assessment</div>
+                <div className="assessment-head">What happened</div>
                 <p>{a.explanation}</p>
               </div>
             ) : a.techniques.length > 0 ? (
               <div className="assessment muted">
-                <div className="assessment-head">Analyst assessment</div>
-                <p>Awaiting the local model&apos;s written assessment. Techniques below are mapped from retrieval.</p>
+                <div className="assessment-head">What happened</div>
+                <p>Awaiting the local model&apos;s written assessment — refreshes automatically. Techniques below are mapped from retrieval.</p>
               </div>
             ) : null}
 
             {a.techniques.length > 0 ? (
               <div className="techlist">
-                <div className="techlist-head">Mapped techniques <span className="hint">— what the attacker did</span></div>
+                <div className="techlist-head">Mapped techniques
+                  <Help text="Hover a technique's ? for a plain-English description of what it is." />
+                </div>
                 {a.techniques.map((t) => (
                   <div className="tech" key={t.id}>
                     <div className="id">{t.id}</div>
                     <div className="tbody">
-                      <div className="nm">{t.name}</div>
+                      <div className="nm">{t.name}{t.description && <Help text={t.description} align="right" wide />}</div>
                       <div className="tac">tactic · {t.tactic}</div>
-                      {t.description && <div className="tdesc">{t.description}</div>}
                     </div>
                   </div>
                 ))}
@@ -149,12 +151,10 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
 
             {a.predicted_next && (
               <div className="next">
-                <div className="lbl">Predicted next tactic</div>
-                <div className="val">{[...new Set(d.timeline.map((e) => e.phase))].slice(-1)[0]?.replace(/_/g, "-")} → <b>{a.predicted_next}</b></div>
-                <div className="next-why">
-                  Learned from how ATT&amp;CK tactics commonly chain across intrusions — this is the attacker&apos;s
-                  most likely next move. Prioritise detection and threat-hunting for <b>{a.predicted_next}</b> activity now.
+                <div className="lbl">Predicted next tactic
+                  <Help align="right" wide text="Learned from how ATT&CK tactics commonly chain across intrusions — the attacker's most likely next move. Prioritise detection and threat-hunting for this tactic now." />
                 </div>
+                <div className="val">{[...new Set(d.timeline.map((e) => e.phase))].slice(-1)[0]?.replace(/_/g, "-")} → <b>{a.predicted_next}</b></div>
               </div>
             )}
           </div>
