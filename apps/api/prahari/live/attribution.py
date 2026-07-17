@@ -38,8 +38,11 @@ def build_attribute_fn(
     retriever = Retriever(embed_fn=embed_fn).fit(corpus)
     predictor = TacticPredictor().fit(ATTACK_TACTIC_PRIOR)
 
+    # offline threat-intel so the model can reason about the destination address
+    from prahari.live.threatintel import context_for
+
     def attribute(incident: Incident) -> AttributionView:
-        attr = Attributor(retriever, chat_fn=chat_fn, k=k).attribute(incident)
+        attr = Attributor(retriever, chat_fn=chat_fn, k=k, ip_context=context_for).attribute(incident)
         techniques = []
         for tid in attr.technique_ids:
             doc = doc_by_id.get(tid)

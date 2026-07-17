@@ -1,0 +1,8 @@
+cidr,country,city
+52.84.0.0/15,US,Seattle
+13.32.0.0/15,US,Ashburn
+34.64.0.0/10,US,Council Bluffs
+20.33.0.0/16,IE,Dublin
+104.16.0.0/13,US,San Francisco
+185.220.100.0/22,DE,Frankfurt
+45.155.205.0/24,RU,Moscow
