@@ -44,6 +44,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 html { background: var(--ink); }
+.icon { display: inline-block; vertical-align: -0.14em; flex: 0 0 auto; }
 :root[data-theme="light"] body {
   background:
     radial-gradient(1400px 700px at 85% -12%, rgba(176, 106, 18, 0.06), transparent 60%),

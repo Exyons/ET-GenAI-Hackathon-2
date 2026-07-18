@@ -9,6 +9,7 @@ import {
 } from "../lib/api";
 import { clock, shortSource } from "../lib/format";
 import { STAGE_BY_SLUG, type StageSlug } from "../lib/pipeline";
+import { Icon } from "./Icon";
 import { TopBar } from "./TopBar";
 
 function lastSeen(s: number | null): string {
@@ -136,7 +137,7 @@ function AttributeBody({ status }: { status: Status | null }) {
         <Fact k="Incidents mapped" v={st.attributed ?? 0} tone="ok" />
         <Fact k="Attribution failures" v={st.attribution_failed ?? 0} tone={(st.attribution_failed ?? 0) > 0 ? "bad" : undefined} />
       </div>
-      {p?.attribution_error && <p className="stage-note" style={{ borderLeftColor: "var(--alert)", color: "var(--alert)" }}>⚠ {p.attribution_error} — retrying every 60s.</p>}
+      {p?.attribution_error && <p className="stage-note" style={{ borderLeftColor: "var(--alert)", color: "var(--alert)" }}><Icon name="warn" /> {p.attribution_error} — retrying every 60s.</p>}
       <p className="stage-note">Every technique is retrieved from the ATT&CK corpus before the model answers, and IDs outside the retrieved set are dropped — so attributions are grounded, not hallucinated. Both models run locally; nothing leaves the box.</p>
     </div>
   );

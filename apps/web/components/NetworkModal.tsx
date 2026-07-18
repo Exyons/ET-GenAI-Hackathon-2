@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { addToBlocklist, getNetworkDetail, type NetworkDetail } from "../lib/api";
 import { clock, compact } from "../lib/format";
 import { Help } from "./Help";
+import { Icon } from "./Icon";
 
 const SEV_CLS: Record<string, string> = { bad: "err", good: "ok", neutral: "warn" };
 
@@ -64,7 +65,7 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
               <Help wide text="Reputation is checked against local blocklists — bundled feeds refreshed on a schedule, plus any addresses you add. Provider and location come from the offline datasets, or a live lookup when the address isn't covered and the host is online." />
             </p>
             {d.reputation.listed && (
-              <div className="rep-alert mono">⚑ Address is on {d.reputation.sources.length} blocklist{d.reputation.sources.length === 1 ? "" : "s"}: {d.reputation.sources.join(", ")}</div>
+              <div className="rep-alert mono"><Icon name="flag" /> Address is on {d.reputation.sources.length} blocklist{d.reputation.sources.length === 1 ? "" : "s"}: {d.reputation.sources.join(", ")}</div>
             )}
             <div className="modal-metrics">
               <div className="mm">
@@ -104,7 +105,7 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
         <div className="modal-foot">
           {d && !d.reputation.listed && (
             <button type="button" className="btn arm" disabled={busy} onClick={block}>
-              {busy ? "adding…" : "⚑ Add to blocklist"}
+              {busy ? "adding…" : <><Icon name="flag" /> Add to blocklist</>}
             </button>
           )}
           {d && d.reputation.listed && (
