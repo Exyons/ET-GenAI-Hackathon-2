@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import type { Status } from "../lib/api";
 import { clock } from "../lib/format";
 import type { StageDef } from "../lib/pipeline";
+import { Icon } from "./Icon";
 
 export function StageModal({ stage, status, onClose }: {
   stage: StageDef; status: Status | null; onClose: () => void;
@@ -50,7 +51,7 @@ export function StageModal({ stage, status, onClose }: {
           ))}
         </div>
 
-        {err && <div className="modal-err mono">⚠ {err}</div>}
+        {err && <div className="modal-err mono"><Icon name="warn" /> {err}</div>}
 
         {stage.activityStage && (
           <div className="modal-activity">

@@ -8,6 +8,7 @@ import {
   type Settings, type ThreatIntelStatus,
 } from "../lib/api";
 import { Help } from "./Help";
+import { Icon } from "./Icon";
 import { ThemeToggle } from "./ThemeToggle";
 import { TopBar } from "./TopBar";
 
@@ -151,7 +152,7 @@ export function SettingsPanel() {
           </div>
           <div className="set-actions">
             <button type="button" className="btn go" onClick={saveModel} disabled={saving}>
-              {saving ? "saving…" : saved ? "saved ✓" : "Save model"}
+              {saving ? "saving…" : saved ? <><Icon name="check" /> saved</> : "Save model"}
             </button>
             <button type="button" className="btn" onClick={runTest} disabled={testing}>
               {testing ? "testing…" : "Test connection"}
@@ -160,7 +161,7 @@ export function SettingsPanel() {
             {modelsMsg && <span className="set-note mono dim">{modelsMsg}</span>}
             {test && (
               <span className={`set-test mono ${test.ok ? "ok" : "err"}`}>
-                {test.ok ? `✓ reachable — “${test.reply}”` : `✕ ${test.error}`}
+                <Icon name={test.ok ? "check" : "x"} /> {test.ok ? `reachable — “${test.reply}”` : test.error}
               </span>
             )}
           </div>
@@ -202,7 +203,7 @@ export function SettingsPanel() {
           <div className="set-oprow">
             <input className="mono" placeholder="IP or CIDR (e.g. 45.9.0.0/16)" value={newIp} onChange={(e) => setNewIp(e.target.value)} />
             <input className="mono" placeholder="note (optional)" value={newNote} onChange={(e) => setNewNote(e.target.value)} />
-            <button type="button" className="btn arm" onClick={addOp}>⚑ Add</button>
+            <button type="button" className="btn arm" onClick={addOp}><Icon name="flag" /> Add</button>
           </div>
           {ops.length === 0 ? (
             <p className="mono dim set-none">No operator entries yet.</p>

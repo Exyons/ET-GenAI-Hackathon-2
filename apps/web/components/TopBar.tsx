@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Icon } from "./Icon";
 import { ThemeToggle } from "./ThemeToggle";
 
 export type LinkState = "live" | "degraded" | "down" | "unknown";
@@ -39,7 +40,7 @@ export function TopBar({ link, nav = false }: { link?: LinkState; nav?: boolean 
         </>
       )}
       <ThemeToggle compact />
-      <Link href="/settings" className="chip navlink" aria-label="Settings" title="Settings">⚙ SETTINGS</Link>
+      <Link href="/settings" className="chip navlink" aria-label="Settings" title="Settings"><Icon name="gear" /> SETTINGS</Link>
       <span className="chip utc mono">{utc ?? "--:--:--"} UTC</span>
     </header>
   );

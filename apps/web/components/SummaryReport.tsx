@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getSummary, type SituationSummary } from "../lib/api";
+import { Icon } from "./Icon";
 
 const PHASE_COLOR: Record<string, string> = {
   lateral_movement: "#b8860b", discovery: "#6a4ca8", execution: "#0f8a63", command_and_control: "#c0392b",
@@ -65,7 +66,7 @@ export function SummaryReport() {
       <div className="rep-summary-head">
         <h2>1 · Situation summary</h2>
         <button type="button" className="rep-regen no-print" onClick={regen} disabled={busy}>
-          {busy ? "regenerating…" : "↻ regenerate"}
+          {busy ? "regenerating…" : <><Icon name="refresh" /> regenerate</>}
         </button>
       </div>
 

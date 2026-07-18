@@ -9,6 +9,7 @@ import {
 } from "../lib/api";
 import { subscribe } from "../lib/stream";
 import { ExportMenu } from "./ExportMenu";
+import { Icon } from "./Icon";
 import { TapeList } from "./TapeList";
 import { TelemetrySummary } from "./TelemetrySummary";
 import { TopBar } from "./TopBar";
@@ -116,7 +117,7 @@ export function TelemetryConsole({ initialView }: { initialView: TelemetryView }
           />
           <button type="button" className={`tab mono view-toggle${summary ? " on" : ""}`}
             aria-pressed={summary} onClick={() => setSummary((v) => !v)}>
-            {summary ? "▤ TAPE" : "◫ SUMMARY"}
+            {summary ? <><Icon name="tape" /> TAPE</> : <><Icon name="summary" /> SUMMARY</>}
           </button>
           <ExportMenu />
         </div>
