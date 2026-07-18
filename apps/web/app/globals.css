@@ -827,3 +827,30 @@ a.kpi.drill:hover { background: #1a2536; }
 .set-rm:hover { background: rgba(229, 72, 77, 0.1); }
 
 @media (max-width: 760px) { .set-grid, .set-oprow { grid-template-columns: 1fr; } }
+
+/* ---------- response: filters, groups, carousel ---------- */
+.act-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.act-filter { font-size: 10px; letter-spacing: 0.06em; padding: 5px 11px; border: 1px solid var(--line);
+  border-radius: 100px; background: none; color: var(--haze); cursor: pointer; text-transform: uppercase; }
+.act-filter:hover { color: var(--paper); }
+.act-filter.on { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.45); background: rgba(245, 166, 35, 0.08); }
+.act-filter .n { color: var(--paper); font-weight: 700; margin-left: 4px; }
+.act-filter.on .n { color: var(--phosphor); }
+
+.act-group { margin-bottom: 18px; }
+.act-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.act-group-head .gt { font-size: 11.5px; font-weight: 700; color: var(--paper); text-transform: uppercase; letter-spacing: 0.05em; }
+.act-group-head .gc { font-size: 10.5px; color: var(--haze); }
+
+.act-carousel { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; }
+.caro-track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 6px; min-width: 0; }
+.caro-item { flex: 0 0 auto; width: min(370px, 84%); scroll-snap-align: start; }
+.caro-item .act-card { height: 100%; }
+.caro-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--ink-2); color: var(--haze);
+  cursor: pointer; flex: 0 0 auto; }
+.caro-nav:hover { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.45); }
+.caro-track::-webkit-scrollbar { height: 7px; }
+.caro-track::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.caro-track::-webkit-scrollbar-track { background: transparent; }

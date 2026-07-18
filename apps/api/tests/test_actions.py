@@ -37,6 +37,17 @@ def test_recommend_maps_phases_to_playbooks():
     assert all(r["reversible"] for r in recommend(_incident()) if r["playbook"] != "kill_process")
 
 
+def test_block_ip_only_for_public_destinations():
+    inc = Incident(entity="C553", events=[
+        _ev(16, "auth", "lanl", source_entity="u1", src_host="C1", dst_host="C553"),
+        _ev(20, "network_flow", "cicids", src_host="C553", dst_ip="10.0.0.9", src_internal=True),      # internal
+        _ev(22, "network_flow", "cicids", src_host="C553", dst_ip="192.168.1.5", src_internal=True),   # private
+        _ev(24, "network_flow", "cicids", src_host="C553", dst_ip="52.84.23.17", src_internal=False),  # public
+    ])
+    targets = {r["target"] for r in recommend(inc) if r["playbook"] == "block_ip"}
+    assert targets == {"52.84.23.17"}  # internal / private destinations are never blocked
+
+
 def test_action_lifecycle_and_audit():
     bus = _Bus()
     store = ActionStore(bus)
