@@ -42,6 +42,21 @@ Static file edits are cached — restart the API or hit `/api/baseline/reset` af
 changing them. Feed refreshes, `/refresh`, and operator adds reset the cache
 automatically.
 
+## Provider / geo for uncovered addresses (online)
+
+The offline `providers.json` / `geo.csv` only cover the ranges you seed. For public
+addresses they don't cover, Prahari can fill provider (org / ASN) and geo from a live
+IP-info service — queried only when the offline data is missing, cached, with a short
+timeout:
+
+```
+IP_ENRICH_URL=https://ipwho.is/{ip}   # {ip} is substituted; JSON parsed defensively
+IP_ENRICH_TIMEOUT=3
+```
+
+Set `IP_ENRICH_URL=` empty to disable (fully air-gapped). The response is parsed
+loosely, so ipwho.is, ipapi.co and ip-api.com-style payloads all work.
+
 Good real-world feeds to point at: **abuse.ch Feodo Tracker** (active C2),
 **FireHOL Level 1 / Emerging Threats** (aggregated), plus cloud provider ranges
 (AWS `ip-ranges.json`, GCP, Azure, Cloudflare) for `providers.json` and **MaxMind

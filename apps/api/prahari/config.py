@@ -52,3 +52,10 @@ THREATINTEL_FEEDS = [
     ).split(",") if u.strip()
 ]
 THREATINTEL_REFRESH_HOURS = float(os.environ.get("THREATINTEL_REFRESH_HOURS", "12"))
+
+# Online IP enrichment (provider / ASN / geo) for public addresses not covered by
+# the offline provider/geo datasets. Queried only when offline data is missing,
+# cached, with a short timeout. Set IP_ENRICH_URL empty to disable (air-gapped).
+# {ip} is substituted into the URL; the JSON response is parsed defensively.
+IP_ENRICH_URL = os.environ.get("IP_ENRICH_URL", "https://ipwho.is/{ip}")
+IP_ENRICH_TIMEOUT = float(os.environ.get("IP_ENRICH_TIMEOUT", "3"))

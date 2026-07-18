@@ -179,11 +179,21 @@ def playbooks_catalog() -> dict:
 
 @router.get("/network/{ip}")
 def network_detail(ip: str) -> dict:
-    from prahari.live import threatintel
+    from prahari.live import ipinfo, threatintel
     from prahari.live.netinfo import classify
 
     info = classify(ip)
     ti = threatintel.enrich(ip)
+
+    # fill provider/geo from an online source only when the offline data is missing
+    # and the address is a routable public one — cached, graceful when unreachable
+    online = False
+    if not ti["provider"] and info["scope"] == "external" and info["klass"] == "public":
+        extra = ipinfo.lookup(ip)
+        for k in ("provider", "provider_type", "country", "city"):
+            if not ti.get(k) and extra.get(k):
+                ti[k], online = extra[k], True
+
     listed = ti["reputation"]["listed"]
     if listed:
         verdict, severity = "Malicious — on blocklist", "bad"
@@ -199,7 +209,7 @@ def network_detail(ip: str) -> dict:
     times = [f["ts"] for f in flows]
     return {
         "ip": ip, **info, **ti,
-        "verdict": verdict, "severity": severity,
+        "verdict": verdict, "severity": severity, "online_enriched": online,
         "flow_count": len(flows),
         "hosts": hosts,
         "total_bytes": sum(f["bytes"] or 0 for f in flows),
