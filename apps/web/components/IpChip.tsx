@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { IP_MODAL_EVENT } from "./IpModalHost";
 
-import { NetworkModal } from "./NetworkModal";
-
-// A clickable IP that opens offline network enrichment. Reusable in the timeline,
-// the response panel and the tape.
+// A clickable IP that opens offline network enrichment. Fires a window event so a
+// single page-level host renders the modal — see IpModalHost. That keeps the modal
+// out of the tape row (whose nowrap/overflow it would otherwise inherit) and alive
+// while the tape re-renders underneath. Reusable in the timeline, response panel,
+// tape and summary table.
 export function IpChip({ ip }: { ip: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <button type="button" className="ipchip mono" onClick={() => setOpen(true)}
-        title="network connection detail">{ip}</button>
-      {open && <NetworkModal ip={ip} onClose={() => setOpen(false)} />}
-    </>
+    <button type="button" className="ipchip mono" title="network connection detail"
+      onClick={() => window.dispatchEvent(new CustomEvent(IP_MODAL_EVENT, { detail: ip }))}>
+      {ip}
+    </button>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { addToBlocklist, getNetworkDetail, type NetworkDetail } from "../lib/api";
 import { clock, compact } from "../lib/format";
+import { Help } from "./Help";
 
 const SEV_CLS: Record<string, string> = { bad: "err", good: "ok", neutral: "warn" };
 
@@ -46,7 +47,7 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
         <div className="modal-accent" />
         <div className="modal-head">
           <div>
-            <div className="modal-eyebrow mono">NETWORK ADDRESS · OFFLINE ENRICHMENT</div>
+            <div className="modal-eyebrow mono">NETWORK ADDRESS · ENRICHMENT</div>
             <h3 className="modal-title mono">{ip}</h3>
           </div>
           {d && <span className={`stage-state mono${sevCls ? ` ${sevCls}` : ""}`}>{d.verdict}</span>}
@@ -58,15 +59,21 @@ export function NetworkModal({ ip, onClose }: { ip: string; onClose: () => void 
           <p className="modal-about mono dim">loading…</p>
         ) : (
           <>
-            <p className="modal-about">{d.label}. Reputation is checked against local blocklists — bundled, auto-refreshed feeds, and any addresses you add — so enrichment keeps working even offline.</p>
+            <p className="modal-about">
+              {d.label}
+              <Help wide text="Reputation is checked against local blocklists — bundled feeds refreshed on a schedule, plus any addresses you add. Provider and location come from the offline datasets, or a live lookup when the address isn't covered and the host is online." />
+            </p>
             {d.reputation.listed && (
               <div className="rep-alert mono">⚑ Address is on {d.reputation.sources.length} blocklist{d.reputation.sources.length === 1 ? "" : "s"}: {d.reputation.sources.join(", ")}</div>
             )}
             <div className="modal-metrics">
-              <div className="mm"><div className="mm-k">provider</div><div className="mm-v mono">{d.provider || "—"}{d.provider_type ? ` · ${d.provider_type}` : ""}</div></div>
+              <div className="mm">
+                <div className="mm-k">provider{d.online_enriched && <Help text="Resolved by a live IP-info lookup — this address isn't in the offline provider dataset." />}</div>
+                <div className="mm-v mono">{d.provider || "—"}{d.provider_type ? ` · ${d.provider_type}` : ""}</div>
+              </div>
               <div className="mm"><div className="mm-k">location</div><div className="mm-v mono">{geo || "no GeoIP data"}</div></div>
-              <div className="mm"><div className="mm-k">connections seen</div><div className="mm-v mono">{d.flow_count}</div></div>
-              <div className="mm"><div className="mm-k">data out</div><div className="mm-v mono">{fmtBytes(d.total_bytes)}</div></div>
+              <div className="mm"><div className="mm-k">connections seen<Help text="How many flow records to this address are retained in the live window." /></div><div className="mm-v mono">{d.flow_count}</div></div>
+              <div className="mm"><div className="mm-k">data out<Help text="Total bytes sent to this address across the retained flows." /></div><div className="mm-v mono">{fmtBytes(d.total_bytes)}</div></div>
             </div>
             {d.hosts.length > 0 && (
               <div className="modal-activity">
