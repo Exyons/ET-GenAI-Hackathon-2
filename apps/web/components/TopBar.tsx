@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ThemeToggle } from "./ThemeToggle";
+
 export type LinkState = "live" | "degraded" | "down" | "unknown";
 
 const LINK_LABEL: Record<LinkState, string> = {
@@ -36,6 +38,8 @@ export function TopBar({ link, nav = false }: { link?: LinkState; nav?: boolean 
           <Link href="/demo" className="chip navlink">DEMO</Link>
         </>
       )}
+      <ThemeToggle compact />
+      <Link href="/settings" className="chip navlink" aria-label="Settings" title="Settings">⚙ SETTINGS</Link>
       <span className="chip utc mono">{utc ?? "--:--:--"} UTC</span>
     </header>
   );

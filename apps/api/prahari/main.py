@@ -20,13 +20,13 @@ async def _ticker() -> None:
 
 
 async def _feed_refresher() -> None:
-    # keep blocklist feeds fresh; skip entirely when no feeds are configured
-    if not config.THREATINTEL_FEEDS:
-        return
+    # keep blocklist feeds fresh; the feed list is read at refresh time (settings),
+    # so it stays correct even when the operator edits it at runtime
     from prahari.live import feeds
     while True:
         try:
-            await asyncio.to_thread(feeds.refresh)
+            if feeds._feeds():
+                await asyncio.to_thread(feeds.refresh)
         except Exception:
             pass
         await asyncio.sleep(max(0.1, config.THREATINTEL_REFRESH_HOURS) * 3600)

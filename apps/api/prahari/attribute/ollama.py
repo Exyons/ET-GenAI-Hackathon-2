@@ -14,21 +14,29 @@ def _raise_with_body(resp: httpx.Response) -> None:
         raise RuntimeError(f"ollama {resp.status_code}: {resp.text[:200]}")
 
 
+def _auth(api_key: str | None) -> dict:
+    # Ollama Cloud (and self-hosted behind a gateway) authenticate with a bearer
+    return {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+
 def ollama_embed(
-    texts: list[str], model: str = "embeddinggemma", host: str = DEFAULT_HOST
+    texts: list[str], model: str = "embeddinggemma", host: str = DEFAULT_HOST,
+    api_key: str | None = None,
 ) -> np.ndarray:
-    resp = httpx.post(f"{host}/api/embed", json={"model": model, "input": texts}, timeout=120)
+    resp = httpx.post(f"{host}/api/embed", json={"model": model, "input": texts},
+                      headers=_auth(api_key), timeout=120)
     _raise_with_body(resp)
     return np.array(resp.json()["embeddings"], dtype=float)
 
 
 def ollama_chat(
-    prompt: str, model: str = "qwen3.5:cloud", host: str = DEFAULT_HOST
+    prompt: str, model: str = "qwen3.5:cloud", host: str = DEFAULT_HOST,
+    api_key: str | None = None,
 ) -> str:
     resp = httpx.post(
         f"{host}/api/chat",
         json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
-        timeout=180,
+        headers=_auth(api_key), timeout=180,
     )
     _raise_with_body(resp)
     return resp.json()["message"]["content"]

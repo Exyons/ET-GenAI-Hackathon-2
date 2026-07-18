@@ -28,6 +28,12 @@ def norm_cmd(cmd: str) -> str:
     return " ".join(cmd.split()).lower()[:200]
 
 
+def _model_status() -> dict:
+    from prahari.live import settings as settings_store
+    s = settings_store.get()
+    return {"chat": s["chat_model"], "embed": s["embed_model"], "provider": s["provider"]}
+
+
 # a sentinel fit on a handful of events produces a meaningless threshold that
 # flags everything; below this many clean training events the detector stays off
 MIN_FIT_EVENTS = 12
@@ -302,7 +308,7 @@ class LivePipeline:
                 "process_baseline_size": len(self.process_baseline),
                 "detectors": {"auth": self.auth_sentinel is not None,
                               "network": self.net_sentinel is not None},
-                "models": {"chat": config.CHAT_MODEL, "embed": config.EMBED_MODEL},
+                "models": _model_status(),
                 "attribution_error": self.attr_error,
             },
             "response": self.action_store.stats() if self.action_store is not None else {

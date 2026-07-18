@@ -49,3 +49,20 @@ def test_add_operator_entry_persists_and_dedups(tmp_path, monkeypatch):
     with pytest.raises(ValueError):
         ti.add_blocklist_entry("not-an-ip")
     ti.reset_cache()
+
+
+def test_operator_entries_list_and_remove(tmp_path, monkeypatch):
+    monkeypatch.setattr(ti.config, "THREATINTEL_DIR", str(tmp_path))
+    ti.reset_cache()
+
+    ti.add_blocklist_entry("5.5.5.0/24", note="c2")
+    ti.add_blocklist_entry("6.6.6.6", note="")
+    entries = ti.operator_entries()
+    assert {"cidr": "5.5.5.0/24", "note": "c2"} in entries
+    assert any(e["cidr"] == "6.6.6.6/32" for e in entries)
+
+    assert ti.remove_blocklist_entry("5.5.5.0/24") is True
+    assert all(e["cidr"] != "5.5.5.0/24" for e in ti.operator_entries())
+    assert ti.enrich("5.5.5.9")["reputation"]["listed"] is False  # cache refreshed
+    assert ti.remove_blocklist_entry("9.9.9.9") is False  # not present
+    ti.reset_cache()
