@@ -854,3 +854,11 @@ a.kpi.drill:hover { background: #1a2536; }
 .caro-track::-webkit-scrollbar { height: 7px; }
 .caro-track::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 .caro-track::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- summary table: provider + scope ---------- */
+.tsum-prov { color: var(--haze); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsum-scope { display: inline-block; font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 100px; border: 1px solid var(--line); }
+.tsum-scope.good { color: var(--calm); border-color: rgba(63, 182, 168, 0.4); }
+.tsum-scope.neutral { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.4); }
+.tsum-scope.bad { color: var(--alert); border-color: rgba(229, 72, 77, 0.45); }
