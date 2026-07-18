@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Icon } from "./Icon";
+
 export type Theme = "dark" | "light";
 const KEY = "prahari-theme";
 
@@ -22,14 +24,17 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
     setTheme(t);
   }, []);
   const toggle = () => { const next: Theme = theme === "dark" ? "light" : "dark"; setTheme(next); apply(next); };
-  const label = theme === "dark" ? "☾ Dark" : "☀ Light";
   if (compact) {
-    return <button type="button" className="chip theme-chip" onClick={toggle} aria-label="Toggle theme">{label}</button>;
+    return (
+      <button type="button" className="chip theme-chip" onClick={toggle} aria-label="Toggle theme">
+        <Icon name={theme === "dark" ? "moon" : "sun"} /> {theme === "dark" ? "Dark" : "Light"}
+      </button>
+    );
   }
   return (
     <div className="theme-switch">
-      <button type="button" className={`tsw${theme === "dark" ? " on" : ""}`} onClick={() => { setTheme("dark"); apply("dark"); }}>☾ Dark</button>
-      <button type="button" className={`tsw${theme === "light" ? " on" : ""}`} onClick={() => { setTheme("light"); apply("light"); }}>☀ Light</button>
+      <button type="button" className={`tsw${theme === "dark" ? " on" : ""}`} onClick={() => { setTheme("dark"); apply("dark"); }}><Icon name="moon" /> Dark</button>
+      <button type="button" className={`tsw${theme === "light" ? " on" : ""}`} onClick={() => { setTheme("light"); apply("light"); }}><Icon name="sun" /> Light</button>
     </div>
   );
 }
