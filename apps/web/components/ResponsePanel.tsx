@@ -1,13 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   approveAction, getActions, getPlaybooks, PLAYBOOK_TITLE, rejectAction, revertAction,
   type PlaybookInfo, type ResponseAction,
 } from "../lib/api";
 import { Help } from "./Help";
+import { Icon } from "./Icon";
 import { IpChip } from "./IpChip";
+
+// status filters and the order playbook groups are shown in
+type FilterKey = "all" | "pending" | "active" | "done" | "dismissed";
+const FILTERS: { key: FilterKey; label: string; match: (a: ResponseAction) => boolean }[] = [
+  { key: "all", label: "All", match: () => true },
+  { key: "pending", label: "Awaiting", match: (a) => a.status === "pending_approval" },
+  { key: "active", label: "Running", match: (a) => a.status === "approved" || a.status === "dispatched" },
+  { key: "done", label: "Executed", match: (a) => a.status === "executed" },
+  { key: "dismissed", label: "Dismissed", match: (a) => ["rejected", "reverted", "failed"].includes(a.status) },
+];
+const PLAYBOOK_ORDER = ["isolate_host", "block_ip", "disable_account", "kill_process", "snapshot"];
 
 const READ_ONLY = new Set(["snapshot"]);
 const IP_TARGET = new Set(["block_ip"]);
@@ -88,11 +100,11 @@ function ActionCard({ a, info, onChange }: {
           <>
             <button type="button" className="btn go" disabled={busy}
               onClick={() => act(() => approveAction(a.id, false))}>
-              {readOnly ? "Approve · run ▸" : "Approve · dry-run ▸"}
+              {readOnly ? "Approve · run" : "Approve · dry-run"} <Icon name="chevron" />
             </button>
             {!readOnly && (
               <button type="button" className="btn arm" disabled={busy}
-                onClick={() => act(() => approveAction(a.id, true))}>Arm &amp; approve ⚠</button>
+                onClick={() => act(() => approveAction(a.id, true))}>Arm &amp; approve <Icon name="warn" /></button>
             )}
             <button type="button" className="btn no" disabled={busy}
               onClick={() => act(() => rejectAction(a.id))}>Reject</button>
@@ -101,16 +113,50 @@ function ActionCard({ a, info, onChange }: {
         {inFlight && <span className="act-wait mono">waiting for agent on {a.host}…</span>}
         {canRevert && (
           <button type="button" className="btn rev" disabled={busy}
-            onClick={() => act(() => revertAction(a.id))}>Revert ↩</button>
+            onClick={() => act(() => revertAction(a.id))}>Revert <Icon name="undo" /></button>
         )}
       </div>
     </div>
   );
 }
 
+// horizontally-scrollable carousel of action cards — keeps a long list of similar
+// actions (e.g. many block-address proposals) from stacking down the page
+function Carousel({ children, count }: { children: React.ReactNode; count: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scroll = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * Math.max(300, el.clientWidth * 0.85), behavior: "smooth" });
+  };
+  return (
+    <div className="act-carousel">
+      {count > 1 && (
+        <button type="button" className="caro-nav prev" aria-label="previous" onClick={() => scroll(-1)}>
+          <Icon name="chevron" dir="left" />
+        </button>
+      )}
+      <div className="caro-track" ref={ref}>{children}</div>
+      {count > 1 && (
+        <button type="button" className="caro-nav next" aria-label="next" onClick={() => scroll(1)}>
+          <Icon name="chevron" dir="right" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function groupByPlaybook(actions: ResponseAction[]): [string, ResponseAction[]][] {
+  const groups = new Map<string, ResponseAction[]>();
+  for (const a of actions) (groups.get(a.playbook) ?? groups.set(a.playbook, []).get(a.playbook)!).push(a);
+  return [...groups.entries()].sort(
+    ([a], [b]) => (PLAYBOOK_ORDER.indexOf(a) + 1 || 99) - (PLAYBOOK_ORDER.indexOf(b) + 1 || 99),
+  );
+}
+
 export function ResponsePanel({ incidentId }: { incidentId: string }) {
   const [actions, setActions] = useState<ResponseAction[]>([]);
   const [catalog, setCatalog] = useState<Record<string, PlaybookInfo>>({});
+  const [filter, setFilter] = useState<FilterKey>("all");
   const load = useCallback(() => {
     getActions(incidentId).then(setActions).catch(() => {});
   }, [incidentId]);
@@ -123,6 +169,8 @@ export function ResponsePanel({ incidentId }: { incidentId: string }) {
   }, [load]);
 
   const pending = actions.filter((a) => a.status === "pending_approval").length;
+  const shown = actions.filter(FILTERS.find((f) => f.key === filter)!.match);
+  const groups = groupByPlaybook(shown);
 
   return (
     <div className="panel respanel">
@@ -145,9 +193,39 @@ export function ResponsePanel({ incidentId }: { incidentId: string }) {
               the host; <b>Arm &amp; approve</b> executes for real. Read-only actions skip the arm step —
               they only collect evidence.
             </p>
-            <div className="act-list">
-              {actions.map((a) => <ActionCard key={a.id} a={a} info={catalog[a.playbook]} onChange={load} />)}
+            <div className="act-filters">
+              {FILTERS.map((f) => {
+                const n = actions.filter(f.match).length;
+                return (
+                  <button key={f.key} type="button"
+                    className={`act-filter mono${filter === f.key ? " on" : ""}`}
+                    onClick={() => setFilter(f.key)}>
+                    {f.label} <span className="n">{n}</span>
+                  </button>
+                );
+              })}
             </div>
+            {groups.length === 0 ? (
+              <p className="mono dim" style={{ fontSize: 12.5 }}>No actions match this filter.</p>
+            ) : groups.map(([playbook, items]) => {
+              const grpPending = items.filter((a) => a.status === "pending_approval").length;
+              return (
+                <div className="act-group" key={playbook}>
+                  <div className="act-group-head mono">
+                    <span className="gt">{PLAYBOOK_TITLE[playbook] ?? playbook}</span>
+                    <span className="gc">{items.length}{items.length === 1 ? " action" : " actions"}
+                      {grpPending > 0 ? ` · ${grpPending} awaiting` : ""}</span>
+                  </div>
+                  <Carousel count={items.length}>
+                    {items.map((a) => (
+                      <div className="caro-item" key={a.id}>
+                        <ActionCard a={a} info={catalog[a.playbook]} onChange={load} />
+                      </div>
+                    ))}
+                  </Carousel>
+                </div>
+              );
+            })}
           </>
         )}
       </div>
