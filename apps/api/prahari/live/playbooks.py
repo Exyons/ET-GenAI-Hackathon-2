@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from prahari.correlate.incident import Incident
+from prahari.live.netinfo import classify
 
 # Playbook catalog. Command implementations live on the agent (OS-specific);
 # the API only stores the recommendation. `what` / `impact` explain the action in
@@ -71,9 +72,11 @@ def recommend(incident: Incident) -> list[dict]:
             f"{len(incident.sources)} sensors — isolating it stops the attacker moving further.")
 
     for e in incident.timeline():
-        if e.event_type == "network_flow" and e.src_internal is False and (e.dst_ip or e.dst_host):
-            add("block_ip", e.dst_ip or e.dst_host,
-                f"{entity} made an outbound connection to this external address — a likely "
+        # only propose blocking a routable PUBLIC address — never an internal/local
+        # one (blocking those would break the network and just clutters the queue)
+        if e.event_type == "network_flow" and e.dst_ip and classify(e.dst_ip)["klass"] == "public":
+            add("block_ip", e.dst_ip,
+                f"{entity} made an outbound connection to this public address — a likely "
                 "command-and-control channel. Click the address for connection detail.")
         if e.event_type == "auth" and e.source_entity:
             add("disable_account", e.source_entity,
