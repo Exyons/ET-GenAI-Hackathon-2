@@ -1,5 +1,38 @@
-import type { TapeEvent } from "../lib/api";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import { getNetworkDetail, type TapeEvent } from "../lib/api";
 import { IpChip } from "./IpChip";
+
+type Enrichment = { provider: string; provider_type: string; scope: string; klass: string; severity: string };
+const SCOPE_TAG: Record<string, { label: string; cls: string }> = {
+  bad: { label: "malicious", cls: "bad" },
+  good: { label: "internal", cls: "good" },
+  neutral: { label: "public", cls: "neutral" },
+};
+
+// Fetches offline/online enrichment for the addresses shown in the table, cached
+// per IP so it survives the live re-renders and never re-fetches the same address.
+function useEnrichment(ips: string[]): Record<string, Enrichment> {
+  const [cache, setCache] = useState<Record<string, Enrichment>>({});
+  const requested = useRef<Set<string>>(new Set());
+  const key = ips.join(",");
+  useEffect(() => {
+    for (const ip of ips) {
+      if (requested.current.has(ip)) continue;
+      requested.current.add(ip);
+      getNetworkDetail(ip)
+        .then((d) => setCache((c) => ({ ...c, [ip]: {
+          provider: d.provider, provider_type: d.provider_type,
+          scope: d.scope, klass: d.klass, severity: d.severity,
+        } })))
+        .catch(() => { requested.current.delete(ip); });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return cache;
+}
 
 // Live visual summary of whatever slice of telemetry is currently in view — reads
 // the same event array the tape renders, so it updates in place as events stream.
@@ -86,6 +119,7 @@ export function TelemetrySummary({ events }: { events: TapeEvent[] }) {
   const topHosts = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const topSources = [...sources.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const topIps = [...dstIps.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const enrich = useEnrichment(topIps.map(([ip]) => ip));
 
   const tiles: { k: string; v: string | number; cls?: string }[] = [
     { k: "events in view", v: total },
@@ -126,19 +160,25 @@ export function TelemetrySummary({ events }: { events: TapeEvent[] }) {
           <div className="mono dim tsum-none">no network destinations in this view</div>
         ) : (
           <table className="tsum-table">
-            <thead><tr><th>Address</th><th>Connections</th><th>Share</th></tr></thead>
+            <thead><tr><th>Address</th><th>Provider</th><th>Scope</th><th>Connections</th><th>Share</th></tr></thead>
             <tbody>
-              {topIps.map(([ip, n]) => (
-                <tr key={ip}>
-                  <td><IpChip ip={ip} /></td>
-                  <td className="mono">{n}</td>
-                  <td>
-                    <span className="tsum-inline-bar">
-                      <span style={{ width: `${(n / topIps[0][1]) * 100}%` }} />
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {topIps.map(([ip, n]) => {
+                const e = enrich[ip];
+                const tag = e ? SCOPE_TAG[e.severity] : undefined;
+                return (
+                  <tr key={ip}>
+                    <td><IpChip ip={ip} /></td>
+                    <td className="mono tsum-prov">{e?.provider || (e ? "—" : "…")}{e?.provider_type ? ` · ${e.provider_type}` : ""}</td>
+                    <td>{tag ? <span className={`tsum-scope ${tag.cls}`}>{tag.label}</span> : <span className="mono dim">…</span>}</td>
+                    <td className="mono">{n}</td>
+                    <td>
+                      <span className="tsum-inline-bar">
+                        <span style={{ width: `${(n / topIps[0][1]) * 100}%` }} />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
