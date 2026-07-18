@@ -105,14 +105,12 @@ def export_events(view: str = "recent", format: str = "json") -> Response:
 
 @router.get("/summary")
 def summary(refresh: bool = False) -> dict:
-    from prahari import config
-    from prahari.attribute.ollama import ollama_chat
+    from prahari.attribute import llm
+    from prahari.live import settings as settings_store
     from prahari.live.summary import get_summary
 
-    def chat(prompt: str) -> str:
-        return ollama_chat(prompt, model=config.CHAT_MODEL, host=config.OLLAMA_HOST)
-
-    return {**get_summary(pipeline, chat, force=refresh), "model": config.CHAT_MODEL}
+    return {**get_summary(pipeline, llm.chat, force=refresh),
+            "model": settings_store.get()["chat_model"]}
 
 
 @router.get("/events/incidents")
@@ -245,6 +243,60 @@ def threatintel_add(body: BlocklistBody) -> dict:
     except ValueError:
         raise HTTPException(status_code=400, detail=f"not a valid IP or CIDR: {body.ip}")
     return feeds.status()
+
+
+@router.get("/threatintel/operator")
+def threatintel_operator() -> list[dict]:
+    from prahari.live import threatintel
+    return threatintel.operator_entries()
+
+
+@router.delete("/threatintel/blocklist/{cidr:path}")
+def threatintel_remove(cidr: str) -> dict:
+    from prahari.live import feeds, threatintel
+    try:
+        removed = threatintel.remove_blocklist_entry(cidr)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"not a valid IP or CIDR: {cidr}")
+    return {"removed": removed, **feeds.status()}
+
+
+# ---- settings ----
+class SettingsBody(BaseModel):
+    provider: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    chat_model: str | None = None
+    embed_model: str | None = None
+    threatintel_feeds: list[str] | None = None
+
+
+@router.get("/settings")
+def get_settings() -> dict:
+    from prahari.live import settings as settings_store
+    return settings_store.public()
+
+
+@router.put("/settings")
+def put_settings(body: SettingsBody) -> dict:
+    from prahari.live import settings as settings_store
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "provider" in patch and patch["provider"] not in settings_store.PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"unknown provider: {patch['provider']}")
+    settings_store.update(patch)
+    return settings_store.public()
+
+
+@router.post("/settings/test")
+def test_settings() -> dict:
+    from prahari.attribute import llm
+    return llm.test_connection()
+
+
+@router.get("/settings/models")
+def settings_models() -> dict:
+    from prahari.attribute import llm
+    return llm.list_models()
 
 
 @router.get("/actions")

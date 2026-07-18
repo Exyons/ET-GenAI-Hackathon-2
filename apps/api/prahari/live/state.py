@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from prahari import config
+from prahari.live import settings as settings_store
 from prahari.live.actions import ActionStore
 from prahari.live.attribution import build_attribute_fn
 from prahari.live.bus import EventBus
@@ -21,6 +22,17 @@ def _attribute(incident):
     if _attr_fn is None:
         _attr_fn = build_attribute_fn(config.CORPUS_PATH)
     return _attr_fn(incident)
+
+
+def _on_settings_change(changed: set) -> None:
+    # the corpus is embedded once when the attribution fn is built, so a change to
+    # the embed model / provider needs a rebuild; drop it and it re-embeds lazily
+    global _attr_fn
+    if changed & {"provider", "embed_model"}:
+        _attr_fn = None
+
+
+settings_store.on_change(_on_settings_change)
 
 
 pipeline = LivePipeline(

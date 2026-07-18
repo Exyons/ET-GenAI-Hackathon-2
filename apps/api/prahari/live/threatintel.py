@@ -129,3 +129,36 @@ def add_blocklist_entry(cidr: str, note: str = "", source: str = "operator") -> 
     with f.open("a") as fh:
         fh.write(line + "\n")
     reset_cache()
+
+
+def operator_entries(source: str = "operator") -> list[dict]:
+    """The operator-added blocklist lines as [{cidr, note}] for the Settings UI."""
+    f = Path(config.THREATINTEL_DIR) / f"{source}.txt"
+    if not f.is_file():
+        return []
+    out = []
+    for ln in f.read_text().splitlines():
+        cidr = ln.split("#", 1)[0].strip()
+        if not cidr:
+            continue
+        note = ln.split("#", 1)[1].strip() if "#" in ln else ""
+        out.append({"cidr": cidr, "note": note})
+    return out
+
+
+def remove_blocklist_entry(cidr: str, source: str = "operator") -> bool:
+    """Drop an operator-added entry and refresh the cache. Returns True if removed."""
+    net = str(ipaddress.ip_network(cidr.strip(), strict=False))
+    f = Path(config.THREATINTEL_DIR) / f"{source}.txt"
+    if not f.is_file():
+        return False
+    kept, removed = [], False
+    for ln in f.read_text().splitlines():
+        if ln.split("#", 1)[0].strip() == net:
+            removed = True
+            continue
+        kept.append(ln)
+    if removed:
+        f.write_text("\n".join(kept) + ("\n" if kept else ""))
+        reset_cache()
+    return removed

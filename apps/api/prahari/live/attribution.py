@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from prahari import config
 from prahari.api.models import AttributionView, TechniqueView
+from prahari.attribute import llm
 from prahari.attribute.attributor import Attributor
 from prahari.attribute.corpus import load_corpus, short_description
-from prahari.attribute.ollama import ollama_chat, ollama_embed
 from prahari.attribute.predictor import ATTACK_TACTIC_PRIOR, TacticPredictor
 from prahari.attribute.retriever import Retriever
 from prahari.correlate.incident import Incident
@@ -29,9 +28,8 @@ def build_attribute_fn(
 ) -> Callable[[Incident], AttributionView]:
     """Assemble the live attribution function. Embeds the corpus once; each call
     retrieves + reasons + predicts. Fully injectable so tests skip Ollama."""
-    chat_fn = chat_fn or (lambda p: ollama_chat(p, model=config.CHAT_MODEL, host=config.OLLAMA_HOST))
-    embed_fn = embed_fn or (lambda texts: ollama_embed(texts, model=config.EMBED_MODEL,
-                                                       host=config.OLLAMA_HOST))
+    chat_fn = chat_fn or (lambda p: llm.chat(p))
+    embed_fn = embed_fn or (lambda texts: llm.embed(texts))
 
     corpus = load_corpus(corpus_path)
     doc_by_id = {d.id: d for d in corpus}
