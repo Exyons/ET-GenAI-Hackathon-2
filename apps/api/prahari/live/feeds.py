@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from prahari import config
+from prahari.live import settings as settings_store
 from prahari.live import threatintel
+
+
+def _feeds() -> list[str]:
+    # runtime-editable feed list (Settings), falling back to the env default
+    return settings_store.get().get("threatintel_feeds") or list(config.THREATINTEL_FEEDS)
 
 # Keeps blocklist data fresh: pulls the configured feed URLs and writes them into
 # threatintel/ so the offline enricher picks them up. Runs on a schedule (main.py)
@@ -41,7 +47,7 @@ def refresh(fetch=_http_get) -> dict:
     d = Path(config.THREATINTEL_DIR)
     d.mkdir(parents=True, exist_ok=True)
     results: dict = {}
-    for i, url in enumerate(config.THREATINTEL_FEEDS):
+    for i, url in enumerate(_feeds()):
         try:
             body = fetch(url)
             (d / f"{_feed_name(url, i)}.txt").write_text(body)
@@ -60,7 +66,7 @@ def status() -> dict:
         st = {"last_update": _state["last_update"], "feeds": dict(_state["feeds"])}
     return {
         **st,
-        "configured_feeds": list(config.THREATINTEL_FEEDS),
+        "configured_feeds": _feeds(),
         "refresh_hours": config.THREATINTEL_REFRESH_HOURS,
         **threatintel.stats(),
     }

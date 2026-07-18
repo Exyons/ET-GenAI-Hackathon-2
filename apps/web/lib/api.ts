@@ -242,6 +242,23 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", cache: "no-store" });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 export const getMetrics = () => get<Metrics>("/api/metrics");
 export const getIncidents = () => get<IncidentSummary[]>("/api/incidents");
 export const getDemoIncidents = () => get<IncidentSummary[]>("/api/demo/incidents");
@@ -269,6 +286,27 @@ export type ThreatIntelStatus = {
 export const getThreatIntel = () => get<ThreatIntelStatus>("/api/threatintel");
 export const addToBlocklist = (ip: string, note = "") =>
   post<ThreatIntelStatus>("/api/threatintel/blocklist", { ip, note });
+export const refreshThreatIntel = () => post<ThreatIntelStatus>("/api/threatintel/refresh", {});
+export const getOperatorEntries = () => get<{ cidr: string; note: string }[]>("/api/threatintel/operator");
+export const removeBlocklist = (cidr: string) =>
+  del<{ removed: boolean } & ThreatIntelStatus>(`/api/threatintel/blocklist/${encodeURIComponent(cidr)}`);
+
+export type Settings = {
+  provider: string;
+  base_url: string;
+  api_key: string;
+  api_key_set: boolean;
+  chat_model: string;
+  embed_model: string;
+  threatintel_feeds: string[];
+  providers: string[];
+};
+export const getSettings = () => get<Settings>("/api/settings");
+export const putSettings = (patch: Partial<Settings>) => put<Settings>("/api/settings", patch);
+export const testConnection = () =>
+  post<{ ok: boolean; reply?: string; error?: string }>("/api/settings/test", {});
+export const listModels = () =>
+  get<{ ok: boolean; models: string[]; error?: string }>("/api/settings/models");
 export const getNetworkDetail = (ip: string) => get<NetworkDetail>(`/api/network/${encodeURIComponent(ip)}`);
 export const getActions = (incident?: string) =>
   get<ResponseAction[]>(`/api/actions${incident ? `?incident=${encodeURIComponent(incident)}` : ""}`);
