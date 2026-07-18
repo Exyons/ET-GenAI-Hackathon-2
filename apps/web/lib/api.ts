@@ -153,6 +153,7 @@ export type NetworkDetail = {
   reputation: { listed: boolean; sources: string[] };
   verdict: string;
   severity: "good" | "neutral" | "bad" | string;
+  online_enriched: boolean;
   flow_count: number;
   hosts: string[];
   total_bytes: number;

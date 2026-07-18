@@ -612,9 +612,10 @@ a.kpi.drill:hover { background: #1a2536; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(6, 10, 18, 0.72);
   -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); display: flex; align-items: center;
   justify-content: center; padding: 24px; animation: fadein 0.12s ease-out; }
-.modal { position: relative; width: min(560px, 100%); max-height: 86vh; overflow-y: auto;
-  background: var(--slate); border: 1px solid var(--line); border-radius: 6px;
+.modal { position: relative; width: min(560px, 100%); max-height: 86vh; overflow-y: auto; overflow-x: hidden;
+  white-space: normal; background: var(--slate); border: 1px solid var(--line); border-radius: 6px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); padding: 22px 24px 20px; animation: modalpop 0.14s ease-out; }
+.modal .modal-about, .modal .mm-v { overflow-wrap: anywhere; }
 .modal-accent { position: absolute; left: 0; top: 0; right: 0; height: 3px; border-radius: 6px 6px 0 0; background: var(--haze); }
 .modal.st-coll .modal-accent { background: var(--calm); }
 .modal.st-base .modal-accent { background: var(--s-auth); }
