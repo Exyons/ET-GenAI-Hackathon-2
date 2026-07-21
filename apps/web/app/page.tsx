@@ -1,4 +1,4 @@
-import { CommandDeck } from "../components/CommandDeck";
+import { CommandWall } from "../components/CommandWall";
 import {
   getIncidents, getRecentEvents, getStatus,
   type IncidentSummary, type Status, type TapeEvent,
@@ -22,12 +22,10 @@ export default async function CommandView() {
   ]);
 
   return (
-    <main className="wrap">
-      <CommandDeck
-        initialIncidents={incidents ?? []}
-        initialStatus={status}
-        initialTape={tape ?? []}
-      />
-    </main>
+    <CommandWall
+      initialIncidents={incidents ?? []}
+      initialStatus={status}
+      initialTape={tape ?? []}
+    />
   );
 }
