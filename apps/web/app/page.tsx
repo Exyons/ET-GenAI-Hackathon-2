@@ -1,4 +1,4 @@
-import { CommandWall } from "../components/CommandWall";
+import { CommandMap } from "../components/CommandMap";
 import {
   getIncidents, getRecentEvents, getStatus,
   type IncidentSummary, type Status, type TapeEvent,
@@ -22,7 +22,7 @@ export default async function CommandView() {
   ]);
 
   return (
-    <CommandWall
+    <CommandMap
       initialIncidents={incidents ?? []}
       initialStatus={status}
       initialTape={tape ?? []}
