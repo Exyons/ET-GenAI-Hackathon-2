@@ -974,7 +974,8 @@ a.kpi.drill:hover { background: #1a2536; }
 .iw-tl { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .iw-tlrow { display: flex; gap: 10px; min-width: 0; }
 .iw-tltime { font: 400 10.5px var(--font-mono); color: var(--haze); flex: none; }
-.iw-tltext { font: 400 11.5px/1.45 var(--font-display); color: var(--paper); min-width: 0; overflow-wrap: anywhere; }
+.iw-tltext { font: 400 11.5px/1.45 var(--font-display); color: var(--paper); min-width: 0; overflow: hidden; }
+.iw-tldetail { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .iw-phase { font-size: 10px; }
 .iw-techs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .iw-tech { font: 500 11px var(--font-mono); color: var(--violet); overflow-wrap: anywhere; }
