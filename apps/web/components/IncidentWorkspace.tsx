@@ -266,8 +266,8 @@ export function IncidentWorkspace({ id }: { id: string }) {
               {d.timeline.slice(-6).map((e, i) => (
                 <div className="iw-tlrow" key={i}>
                   <span className="iw-tltime mono">{clock(e.timestamp)}</span>
-                  <span className="iw-tltext">
-                    {e.actor ? `${e.actor} · ` : ""}{e.detail}
+                  <span className="iw-tltext" title={`${e.actor ? `${e.actor} · ` : ""}${e.detail} · ${e.phase.replace(/_/g, " ")}`}>
+                    <span className="iw-tldetail">{e.actor ? `${e.actor} · ` : ""}{e.detail}</span>
                     <span className="iw-phase" style={{ color: PHASE_COLOR[e.phase] ?? "var(--haze)" }}> · {e.phase.replace(/_/g, " ")}</span>
                   </span>
                 </div>
