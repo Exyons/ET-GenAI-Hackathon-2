@@ -15,3 +15,8 @@ chroma/
 # generated knowledge graph (regenerable via /understand)
 .understand-anything/
 state/
+
+# removed from git history, kept on disk
+Problem_Statement_ET-Gen-Ai-Hackathon.md
+cyber-resilience-battle-plan.md
+docs/
