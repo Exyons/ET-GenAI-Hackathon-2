@@ -151,6 +151,4 @@ cd apps/api && uv run pytest -v
 
 54 test files covering unit tests, integration tests, live pipeline tests, API route tests, and attribution tests. All tests run with deterministic fixtures and no Ollama calls in CI.
 
-## License
 
-Internal use only. Built for ET AI Hackathon 2026.
