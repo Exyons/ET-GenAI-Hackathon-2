@@ -2,15 +2,15 @@
 
 **AI-Driven Cyber Resilience for Critical National Infrastructure**
 
-ET AI Hackathon 2026 · Problem Statement 7
+ET AI Hackathon 2026, Problem Statement 7
 
-Prahari detects threats by how systems behave abnormally, not by matching known malware signatures. It fuses authentication, network, and endpoint telemetry into a single incident timeline, maps the intrusion to MITRE ATT&CK with cited reasoning, and runs fully air-gapped for sovereign deployment on classified networks.
+Prahari detects threats by how systems behave abnormally, not by matching known malware signatures. It fuses authentication, network, and endpoint telemetry into a single incident timeline, maps the intrusion to MITRE ATT&CK with cited reasoning, and runs on-premises with local models.
 
 ---
 
 ## Why Prahari
 
-Signature-based tools miss advanced persistent threats that use valid credentials. On real LANL red-team data, signature detection scores 0.00 recall. Prahari's behavioural approach scores 0.79 recall on the same data. The key insight: precision is not a threshold problem, it is a fusion problem. Single-source detection is noisy; cross-source correlation is where precision comes from.
+Signature-based tools miss advanced persistent threats that use valid credentials. On real LANL red-team data, signature detection scores 0.00 recall. Prahari's behavioural approach scores 0.79 recall on the same data. Single-source detection is noisy; cross-source correlation is where precision comes from.
 
 ## How It Works
 
@@ -21,18 +21,18 @@ Raw Telemetry → Ingestion → Anomaly Detection → Correlation → Attributio
                                         ↓                ↓              ↓
                                   Isolation Forest   Kill-chain     MITRE ATT&CK
                                   + UEBA novelty     + compound     via local LLM
-                                  scoring            scoring        (air-gapped)
+                                  scoring            scoring
 ```
 
-1. **Ingestion & Normalisation** — Parse heterogeneous telemetry (auth logs, process events, network flows) into a unified `CanonicalEvent` schema.
+1. **Ingestion and Normalisation**: Parse heterogeneous telemetry (auth logs, process events, network flows) into a unified `CanonicalEvent` schema.
 
-2. **Behavioural Anomaly Detection** — Score deviations from per-entity baselines using an ensemble of Isolation Forest and novelty scoring (UEBA).
+2. **Behavioural Anomaly Detection**: Score deviations from per-entity baselines using an ensemble of Isolation Forest and novelty scoring (UEBA).
 
-3. **Cross-Source Correlation** — Fuse anomalous events across telemetry sources into compound incidents with kill-chain phase labels. High-confidence incidents require 2+ sources and 2+ phases.
+3. **Cross-Source Correlation**: Fuse anomalous events across telemetry sources into compound incidents with kill-chain phase labels. High-confidence incidents require 2+ sources and 2+ phases.
 
-4. **MITRE ATT&CK Attribution** — Map incidents to ATT&CK techniques using grounded RAG with local LLMs. A hallucination guard ensures only retrieved technique IDs are cited.
+4. **MITRE ATT&CK Attribution**: Map incidents to ATT&CK techniques using grounded RAG with local LLMs. A hallucination guard ensures only retrieved technique IDs are cited.
 
-5. **Response Orchestration** — Recommend containment actions behind a human-approval gate.
+5. **Response Orchestration**: Recommend containment actions behind a human-approval gate.
 
 Detection and correlation run on real ML. The LLM only reasons and explains.
 
@@ -43,7 +43,6 @@ Detection and correlation run on real ML. The LLM only reasons and explains.
 | Behavioural recall (LANL) | **0.79** vs 0.00 for signatures |
 | Multi-source fusion | **9/11** red-team hosts fused into high-confidence incidents |
 | ATT&CK attribution | T1021.006, T1057, T1071.002 (all verified against corpus) |
-| Air-gap | Zero cloud API calls, zero network egress |
 
 ## Quick Start
 
@@ -61,7 +60,7 @@ cd ET-GenAI-Hackathon-2
 cp .env.example .env
 ```
 
-### 2. Pull LLM models (air-gapped, one-time)
+### 2. Pull LLM models (one-time)
 
 ```bash
 ollama pull qwen2.5:7b
@@ -126,7 +125,7 @@ npm run dev
 | Correlation | Kill-chain tagging + compound scoring |
 | Backend | FastAPI + Pydantic |
 | Frontend | Next.js (App Router) + React |
-| Deploy | docker-compose, SOVEREIGN_MODE |
+| Deploy | docker-compose |
 | Collector | Python stdlib only (no pip on monitored VMs) |
 
 ## Configuration
@@ -150,5 +149,3 @@ cd apps/api && uv run pytest -v
 ```
 
 54 test files covering unit tests, integration tests, live pipeline tests, API route tests, and attribution tests. All tests run with deterministic fixtures and no Ollama calls in CI.
-
-
