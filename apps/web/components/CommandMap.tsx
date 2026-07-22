@@ -53,58 +53,64 @@ type MapNode = {
 };
 type MapEdge = { x1: number; y1: number; x2: number; y2: number; color: string; dashed: boolean; appt: number };
 
-function yPos(i: number, n: number): number {
-  if (n <= 1) return 185;
-  return 92 + (i / (n - 1)) * 190;
+// viewBox is 0 0 760 380; focus centred, predicted directly above it
+const FOCUS = { x: 340, y: 220 };
+const R_FOCUS = 30, R_HOST = 23, R_PRED = 26, IP_W = 96, IP_H = 26;
+const TACTIC_ABBR: Record<string, string> = {
+  exfiltration: "EXFIL", discovery: "DISCVR", lateral_movement: "LATERAL", command_and_control: "C2",
+  execution: "EXEC", collection: "COLLECT", persistence: "PERSIST", privilege_escalation: "PRIVESC",
+  credential_access: "CREDS", defense_evasion: "EVASION", impact: "IMPACT", reconnaissance: "RECON",
+  initial_access: "ACCESS",
+};
+function abbr(t: string): string { return TACTIC_ABBR[t] ?? t.replace(/[-_]/g, " ").slice(0, 7).toUpperCase(); }
+function spread(i: number, n: number, top: number, bot: number): number {
+  return n <= 1 ? (top + bot) / 2 : top + (i / (n - 1)) * (bot - top);
 }
 
-function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | null, attributed: Set<string>) {
+function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | null) {
   const nodes: MapNode[] = [];
   const edges: MapEdge[] = [];
   if (incidents.length === 0) return { nodes, edges, predicted: "" };
 
   const focus = incidents[0];
   nodes.push({ id: focus.id, kind: "focus", label: focus.entity, sub: focus.compound_score.toFixed(2),
-    subColor: "var(--phosphor)", stroke: "var(--alert)", x: 300, y: 185, appt: 0 });
+    subColor: "var(--phosphor)", stroke: "var(--alert)", x: FOCUS.x, y: FOCUS.y, appt: 0 });
 
-  // C2 external IPs from the focus incident's network flows
+  // C2 external IPs from the focus incident's network flows (public only)
   const ipTimes = new Map<string, number>();
   for (const e of focusDetail?.timeline ?? []) {
     if (e.dst_ip && isPublicIp(e.dst_ip)) ipTimes.set(e.dst_ip, Math.min(ipTimes.get(e.dst_ip) ?? Infinity, new Date(e.timestamp).getTime()));
   }
   const ips = [...ipTimes.entries()].sort((a, b) => a[1] - b[1]).slice(0, 5);
-
-  // lateral targets = the other live incidents
   const laterals = incidents.slice(1, 5);
 
-  // reveal order across [16, 74]
   const timed = [
-    ...ips.map(([ip, t]) => ({ kind: "ip" as const, key: ip, t })),
-    ...laterals.map((i) => ({ kind: "host" as const, key: i.id, t: new Date(i.start).getTime() })),
+    ...ips.map(([ip, t]) => ({ key: ip, t })),
+    ...laterals.map((i) => ({ key: i.id, t: new Date(i.start).getTime() })),
   ].sort((a, b) => a.t - b.t);
   const appt = new Map<string, number>();
   timed.forEach((x, i) => appt.set(x.key, timed.length <= 1 ? 45 : 16 + (i / (timed.length - 1)) * 58));
 
   ips.forEach(([ip], i) => {
-    const y = yPos(i, ips.length);
+    const y = spread(i, ips.length, 120, 350), x = 610;
     nodes.push({ id: `ip:${ip}`, kind: "ip", label: ip, sub: "C2", subColor: "var(--alert)",
-      stroke: "var(--alert)", x: 632, y, appt: appt.get(ip) ?? 40 });
-    edges.push({ x1: 328, y1: 185, x2: 616, y2: y, color: "var(--s-net)", dashed: false, appt: appt.get(ip) ?? 40 });
+      stroke: "var(--alert)", x, y, appt: appt.get(ip) ?? 40 });
+    edges.push({ x1: FOCUS.x + R_FOCUS, y1: FOCUS.y, x2: x - IP_W / 2 - 4, y2: y, color: "var(--s-net)", dashed: false, appt: appt.get(ip) ?? 40 });
   });
   laterals.forEach((inc, i) => {
-    const y = yPos(i, laterals.length);
-    nodes.push({ id: inc.id, kind: "host", label: inc.entity,
-      sub: `watch ${inc.compound_score.toFixed(2)}`, subColor: inc.compound_score > 0.3 ? "var(--phosphor)" : "var(--haze)",
-      stroke: inc.high_confidence ? "var(--alert)" : "var(--phosphor)", x: 150, y, appt: appt.get(inc.id) ?? 50 });
-    edges.push({ x1: 272, y1: 185, x2: 166, y2: y, color: "var(--phosphor)", dashed: true, appt: appt.get(inc.id) ?? 50 });
+    const y = spread(i, laterals.length, 140, 330), x = 120;
+    nodes.push({ id: inc.id, kind: "host", label: inc.entity, sub: inc.compound_score.toFixed(2),
+      subColor: inc.compound_score > 0.3 ? "var(--phosphor)" : "var(--haze)",
+      stroke: inc.high_confidence ? "var(--alert)" : "var(--phosphor)", x, y, appt: appt.get(inc.id) ?? 50 });
+    edges.push({ x1: FOCUS.x - R_FOCUS, y1: FOCUS.y, x2: x + R_HOST + 4, y2: y, color: "var(--phosphor)", dashed: true, appt: appt.get(inc.id) ?? 50 });
   });
 
-  // predicted next tactic (exfiltration etc.)
   const predicted = focusDetail?.attribution.predicted_next ?? "";
   if (predicted) {
-    nodes.push({ id: "predicted", kind: "predicted", label: predicted, sub: "p 1.0",
-      subColor: "var(--haze)", stroke: "var(--alert)", x: 712, y: 185, appt: 82 });
-    edges.push({ x1: 328, y1: 185, x2: 672, y2: 185, color: "var(--alert)", dashed: true, appt: 82 });
+    const py = 74;
+    nodes.push({ id: "predicted", kind: "predicted", label: abbr(predicted), sub: "p 1.0",
+      subColor: "var(--haze)", stroke: "var(--alert)", x: FOCUS.x, y: py, appt: 82 });
+    edges.push({ x1: FOCUS.x, y1: FOCUS.y - R_FOCUS, x2: FOCUS.x, y2: py + R_PRED + 2, color: "var(--alert)", dashed: true, appt: 82 });
   }
   return { nodes, edges, predicted };
 }
@@ -124,6 +130,7 @@ export function CommandMap({
   const [sseUp, setSseUp] = useState<boolean | null>(null);
   const [utc, setUtc] = useState("--:--:--");
   const [t, setT] = useState(100);
+  const [playing, setPlaying] = useState(false);
   const [sel, setSel] = useState<string | null>(null);
   const [focusDetail, setFocusDetail] = useState<IncidentDetail | null>(null);
   const [incCache, setIncCache] = useState<Record<string, IncidentDetail>>({});
@@ -163,8 +170,15 @@ export function CommandMap({
     getIncident(focus.id).then(setFocusDetail).catch(() => {});
   }, [focus?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { nodes, edges } = useMemo(() => buildGraph(incidents, focusDetail, attributed),
-    [incidents, focusDetail, attributed]);
+  const { nodes, edges } = useMemo(() => buildGraph(incidents, focusDetail),
+    [incidents, focusDetail]);
+
+  // play/pause the replay: advance t, loop back to 0 when it reaches the end
+  useEffect(() => {
+    if (!playing) return;
+    const h = setInterval(() => setT((v) => (v >= 100 ? 0 : Math.min(100, v + 2))), 90);
+    return () => clearInterval(h);
+  }, [playing]);
 
   // default selection = focus
   useEffect(() => {
@@ -236,21 +250,24 @@ export function CommandMap({
         <div className="cm-main">
           <div className="cm-sec">
             <span className="cm-sec-t">ATTACK MAP</span>
-            <span className="cm-sec-s mono">{focus ? <>focus <b>{focus.entity}</b> · click a node to drill in · scrub to replay</> : "no active incidents — monitoring"}</span>
+            <span className="cm-sec-s mono">{focus ? <>focus <b>{focus.entity}</b> · click a node · scroll to zoom</> : "no active incidents — monitoring"}</span>
           </div>
-
-          {nodes.length === 0 ? (
-            <div className="cm-mapempty mono">Correlation quiet. When hosts start chaining kill-chain phases, the attack graph draws itself here.</div>
-          ) : (
-            <AttackSvg nodes={nodes} edges={edges} t={t} sel={sel} onSelect={setSel} />
-          )}
-
-          {/* timeline scrubber */}
+          <div className="cm-mapwrap">
+            {nodes.length === 0
+              ? <div className="cm-mapempty mono">Correlation quiet. When hosts start chaining kill-chain phases, the attack graph draws itself here.</div>
+              : <AttackSvg nodes={nodes} edges={edges} t={t} sel={sel} onSelect={setSel} />}
+          </div>
           {nodes.length > 0 && (
             <div className="cm-scrub">
               <div className="cm-scrub-head">
-                <span className="k mono">REPLAY · drag to watch the attack build</span>
-                <span className="mono" style={{ color: isPred ? "var(--alert)" : "var(--calm)" }}>{isPred ? "▶ predicted future" : "▶ live · now"}</span>
+                <button type="button" className="cm-play" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "pause" : "play"}>
+                  {playing
+                    ? <svg viewBox="0 0 24 24" width="11" height="11"><rect x="6" y="5" width="4" height="14" fill="currentColor" /><rect x="14" y="5" width="4" height="14" fill="currentColor" /></svg>
+                    : <svg viewBox="0 0 24 24" width="11" height="11"><path d="M7 5v14l11-7z" fill="currentColor" /></svg>}
+                </button>
+                <span className="k mono">REPLAY · watch the attack build</span>
+                <span className="spacer" />
+                <span className="mono" style={{ color: isPred ? "var(--alert)" : "var(--calm)" }}>{isPred ? "▶ predicted" : "▶ live · now"}</span>
               </div>
               <div className="cm-track">
                 <div className="cm-track-base" />
@@ -258,7 +275,7 @@ export function CommandMap({
                 <div className="cm-track-pred" />
                 <div className="cm-track-predfill" style={{ width: `${isPred ? (t - 80) : 0}%` }} />
                 <div className="cm-handle" style={{ left: `${t}%` }} />
-                <input type="range" className="cm-range" min={0} max={100} value={t} onChange={(e) => setT(Number(e.target.value))} aria-label="Replay timeline" />
+                <input type="range" className="cm-range" min={0} max={100} value={t} onChange={(e) => { setPlaying(false); setT(Number(e.target.value)); }} aria-label="Replay timeline" />
               </div>
               <div className="cm-track-labels mono">
                 <span>{focus ? hm(focus.start) : ""} start</span><span>C2</span><span>lateral</span>
@@ -266,49 +283,49 @@ export function CommandMap({
               </div>
             </div>
           )}
-
-          {/* node detail */}
-          {sel && <NodeDetail sel={sel} focus={focus} focusDetail={focusDetail} incCache={incCache} ipCache={ipCache} attributed={attributed}
-            onBlocked={(ip) => getNetworkDetail(ip).then((d) => setIpCache((c) => ({ ...c, [ip]: d }))).catch(() => {})} />}
         </div>
 
-        {/* health rail */}
-        <div className="cm-rail">
-          <div className="cm-rail-head">SYSTEM HEALTH</div>
-          <div>
-            <div className="cm-rail-row"><span className="cm-rail-lbl">Ingest</span><span className="mono cm-rail-sub">peak {Math.max(0, ...(fleet?.series ?? []).map((b) => b.auth + b.process + b.network_flow))}/10s</span></div>
-            <Sparkline series={fleet?.series ?? []} />
-            <div className="cm-legend mono">
-              <span><i style={{ background: "var(--s-auth)" }} />AUTH</span>
-              <span><i style={{ background: "var(--s-proc)" }} />PROC</span>
-              <span><i style={{ background: "var(--s-net)" }} />NET</span>
+        {/* right: node detail + system health */}
+        <div className="cm-right">
+          {sel && <NodeDetail sel={sel} focus={focus} focusDetail={focusDetail} incCache={incCache} ipCache={ipCache} attributed={attributed}
+            onBlocked={(ip) => getNetworkDetail(ip).then((d) => setIpCache((c) => ({ ...c, [ip]: d }))).catch(() => {})} />}
+          <div className="cm-health">
+            <div className="cm-rail-head">SYSTEM HEALTH</div>
+            <div>
+              <div className="cm-rail-row"><span className="cm-rail-lbl">Ingest</span><span className="mono cm-rail-sub">peak {Math.max(0, ...(fleet?.series ?? []).map((b) => b.auth + b.process + b.network_flow))}/10s</span></div>
+              <Sparkline series={fleet?.series ?? []} />
+              <div className="cm-legend mono">
+                <span><i style={{ background: "var(--s-auth)" }} />AUTH</span>
+                <span><i style={{ background: "var(--s-proc)" }} />PROC</span>
+                <span><i style={{ background: "var(--s-net)" }} />NET</span>
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="cm-rail-lbl2">Kill chain <span className="mono cm-rail-sub">· flagged</span></div>
-            <div className="cm-kcgrid">
-              {KC_PHASES.map((p) => (
-                <div className="cm-kccell" key={p.key} style={{ borderColor: `color-mix(in srgb, ${p.color} 25%, transparent)`, background: `color-mix(in srgb, ${p.color} 10%, transparent)` }}>
-                  <div className="n mono" style={{ color: p.color }}>{kcCount(p.key)}</div><div className="l">{p.label}</div>
-                </div>
-              ))}
+            <div>
+              <div className="cm-rail-lbl2">Kill chain <span className="mono cm-rail-sub">· flagged</span></div>
+              <div className="cm-kcgrid">
+                {KC_PHASES.map((p) => (
+                  <div className="cm-kccell" key={p.key} style={{ borderColor: `color-mix(in srgb, ${p.color} 25%, transparent)`, background: `color-mix(in srgb, ${p.color} 10%, transparent)` }}>
+                    <div className="n mono" style={{ color: p.color }}>{kcCount(p.key)}</div><div className="l">{p.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <PipelineList status={status} warmup={warmup} />
-          <div className="cm-fleet">
-            <div className="cm-rail-row"><span className="cm-rail-lbl">Sensor fleet</span><span className="mono cm-rail-sub ok">{online}/{hosts.length} online</span></div>
-            {hosts.slice(0, 6).map((h) => {
-              const st = (h.last_seen_s ?? 1e9) < 15 ? "on" : (h.last_seen_s ?? 1e9) < 60 ? "stale" : "off";
-              const c = st === "on" ? "var(--calm)" : st === "stale" ? "var(--phosphor)" : "var(--line)";
-              const seen = h.last_seen_s === null ? "never" : h.last_seen_s < 60 ? `${Math.round(h.last_seen_s)}s` : `${Math.floor(h.last_seen_s / 60)}m`;
-              return (
-                <div className="cm-hrow" key={h.host}>
-                  <span className="cm-hdot" style={{ background: c }} />
-                  <span className="cm-hname mono" style={{ color: st === "off" ? "var(--haze)" : "var(--paper)" }}>{h.host} <span style={{ color: "var(--s-auth)", fontSize: 8 }}>{({ linux: "LNX", windows: "WIN", unknown: "—" })[h.os]}</span></span>
-                  <span className="mono" style={{ fontSize: 9, color: c }}>{seen}</span>
-                </div>
-              );
-            })}
+            <PipelineList status={status} warmup={warmup} />
+            <div className="cm-fleet">
+              <div className="cm-rail-row"><span className="cm-rail-lbl">Sensor fleet</span><span className="mono cm-rail-sub ok">{online}/{hosts.length} online</span></div>
+              {hosts.slice(0, 5).map((h) => {
+                const st = (h.last_seen_s ?? 1e9) < 15 ? "on" : (h.last_seen_s ?? 1e9) < 60 ? "stale" : "off";
+                const c = st === "on" ? "var(--calm)" : st === "stale" ? "var(--phosphor)" : "var(--line)";
+                const seen = h.last_seen_s === null ? "never" : h.last_seen_s < 60 ? `${Math.round(h.last_seen_s)}s` : `${Math.floor(h.last_seen_s / 60)}m`;
+                return (
+                  <div className="cm-hrow" key={h.host}>
+                    <span className="cm-hdot" style={{ background: c }} />
+                    <span className="cm-hname mono" style={{ color: st === "off" ? "var(--haze)" : "var(--paper)" }}>{h.host} <span style={{ color: "var(--s-auth)", fontSize: 8 }}>{({ linux: "LNX", windows: "WIN", unknown: "—" })[h.os]}</span></span>
+                    <span className="mono" style={{ fontSize: 9, color: c }}>{seen}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -316,61 +333,101 @@ export function CommandMap({
   );
 }
 
-// ---- attack SVG -------------------------------------------------------------
+// ---- attack SVG (pan + zoom) ------------------------------------------------
+const VB_W = 760, VB_H = 380;
+
 function AttackSvg({ nodes, edges, t, sel, onSelect }:
   { nodes: MapNode[]; edges: MapEdge[]; t: number; sel: string | null; onSelect: (id: string) => void }) {
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
   const op = (appt: number) => (t >= appt ? 1 : 0.14);
+  const clampK = (k: number) => Math.min(4, Math.max(0.6, k));
+
+  // wheel zoom around the cursor (native listener so we can preventDefault)
+  useEffect(() => {
+    const wrap = wrapRef.current; if (!wrap) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = wrap.getBoundingClientRect();
+      const mx = ((e.clientX - r.left) / r.width) * VB_W, my = ((e.clientY - r.top) / r.height) * VB_H;
+      setView((v) => { const nk = clampK(v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); return { k: nk, x: mx - (mx - v.x) * (nk / v.k), y: my - (my - v.y) * (nk / v.k) }; });
+    };
+    wrap.addEventListener("wheel", onWheel, { passive: false });
+    return () => wrap.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const onDown = (e: React.PointerEvent) => { drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y, moved: false }; };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current || !wrapRef.current) return;
+    const r = wrapRef.current.getBoundingClientRect();
+    const dx = ((e.clientX - drag.current.x) / r.width) * VB_W, dy = ((e.clientY - drag.current.y) / r.height) * VB_H;
+    if (Math.abs(e.clientX - drag.current.x) + Math.abs(e.clientY - drag.current.y) > 3) drag.current.moved = true;
+    setView((v) => ({ ...v, x: drag.current!.px + dx, y: drag.current!.py + dy }));
+  };
+  const onUp = () => { drag.current = null; };
+  const zoomBtn = (f: number) => setView((v) => { const nk = clampK(v.k * f); return { k: nk, x: VB_W / 2 - (VB_W / 2 - v.x) * (nk / v.k), y: VB_H / 2 - (VB_H / 2 - v.y) * (nk / v.k) }; });
+  const reset = () => setView({ k: 1, x: 0, y: 0 });
+  const pick = (id: string) => { if (!drag.current?.moved) onSelect(id); };
+
   return (
-    <svg viewBox="0 0 780 360" className="cm-map" role="img" aria-label="Attack graph">
-      <defs>
-        <marker id="cmArrN" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--s-net)" /></marker>
-        <marker id="cmArrA" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--phosphor)" /></marker>
-        <marker id="cmArrR" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--alert)" /></marker>
-      </defs>
-      {edges.map((e, i) => (
-        <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={e.color} strokeWidth={e.dashed ? 1.6 : 2}
-          strokeDasharray={e.dashed ? "6 4" : undefined} opacity={op(e.appt)}
-          markerEnd={e.color === "var(--s-net)" ? "url(#cmArrN)" : e.color === "var(--alert)" ? "url(#cmArrR)" : "url(#cmArrA)"}
-          style={{ transition: "opacity .3s" }} />
-      ))}
-      {nodes.map((n) => {
-        const active = n.id === sel;
-        const o = op(n.appt);
-        return (
-          <g key={n.id} onClick={() => onSelect(n.id)} opacity={o} style={{ cursor: "pointer", transition: "opacity .3s" }}>
-            {n.kind === "focus" ? (
-              <>
-                {active && <circle cx={n.x} cy={n.y} r={45} fill="none" stroke="var(--phosphor)" strokeWidth={1.4} opacity={0.9} />}
-                <circle cx={n.x} cy={n.y} r={34} fill="rgba(229,72,77,0.10)" stroke="rgba(229,72,77,0.30)" strokeWidth={1} />
-                <circle cx={n.x} cy={n.y} r={24} fill="rgba(229,72,77,0.16)" stroke="var(--alert)" strokeWidth={2} />
-                <text x={n.x} y={n.y - 2} textAnchor="middle" className="cm-nlabel focus">{n.label}</text>
-                <text x={n.x} y={n.y + 12} textAnchor="middle" className="cm-nsub" fill="var(--phosphor)">{n.sub}</text>
-              </>
-            ) : n.kind === "ip" ? (
-              <>
-                {active && <rect x={n.x - 18} y={n.y - 18} width={36} height={36} rx={9} fill="none" stroke="var(--phosphor)" strokeWidth={1.4} opacity={0.9} />}
-                <rect x={n.x - 11} y={n.y - 11} width={22} height={22} rx={6} fill="rgba(229,72,77,0.12)" stroke={n.stroke} strokeWidth={1.6} />
-                <text x={n.x} y={n.y + 30} textAnchor="middle" className="cm-nsub" fill="var(--s-auth)">{n.label}</text>
-                <text x={n.x} y={n.y + 42} textAnchor="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
-              </>
-            ) : n.kind === "predicted" ? (
-              <>
-                <ellipse cx={n.x} cy={n.y} rx={40} ry={24} fill="rgba(229,72,77,0.08)" stroke="var(--alert)" strokeDasharray="4 3" />
-                <text x={n.x} y={n.y - 2} textAnchor="middle" className="cm-nlabel pred" fill="var(--alert)">{n.label.replace(/_/g, " ").slice(0, 9)}</text>
-                <text x={n.x} y={n.y + 12} textAnchor="middle" className="cm-nsub" fill="var(--haze)">{n.sub}</text>
-              </>
-            ) : (
-              <>
-                {active && <circle cx={n.x} cy={n.y} r={23} fill="none" stroke="var(--phosphor)" strokeWidth={1.4} opacity={0.9} />}
-                <circle cx={n.x} cy={n.y} r={16} fill="var(--ink-2)" stroke={n.stroke} strokeWidth={1.6} />
-                <text x={n.x} y={n.y + 3.5} textAnchor="middle" className="cm-nlabel host">{n.label}</text>
-                <text x={n.x} y={n.y + 30} textAnchor="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
-              </>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div className="cm-mapinner" ref={wrapRef}>
+      <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="cm-map" role="img" aria-label="Attack graph" preserveAspectRatio="xMidYMid meet"
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} style={{ cursor: "grab", touchAction: "none" }}>
+        <defs>
+          <marker id="cmArrN" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--s-net)" /></marker>
+          <marker id="cmArrA" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--phosphor)" /></marker>
+          <marker id="cmArrR" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--alert)" /></marker>
+        </defs>
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+          {edges.map((e, i) => (
+            <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={e.color} strokeWidth={e.dashed ? 1.6 : 2}
+              strokeDasharray={e.dashed ? "6 4" : undefined} opacity={op(e.appt)}
+              markerEnd={e.color === "var(--s-net)" ? "url(#cmArrN)" : e.color === "var(--alert)" ? "url(#cmArrR)" : "url(#cmArrA)"}
+              style={{ transition: "opacity .3s" }} />
+          ))}
+          {nodes.map((n) => {
+            const active = n.id === sel;
+            const activeStroke = active ? "var(--phosphor)" : n.stroke;
+            return (
+              <g key={n.id} onClick={() => pick(n.id)} onPointerDown={(e) => e.stopPropagation()} opacity={op(n.appt)}
+                style={{ cursor: "pointer", transition: "opacity .3s" }}>
+                {n.kind === "focus" ? (
+                  <>
+                    <circle cx={n.x} cy={n.y} r={R_FOCUS} fill="rgba(229,72,77,0.16)" stroke={activeStroke} strokeWidth={active ? 2.8 : 2} />
+                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel focus">{n.label}</text>
+                    <text x={n.x} y={n.y + 11} textAnchor="middle" className="cm-nsub" fill="var(--phosphor)">{n.sub}</text>
+                  </>
+                ) : n.kind === "ip" ? (
+                  <>
+                    <rect x={n.x - IP_W / 2} y={n.y - IP_H / 2} width={IP_W} height={IP_H} rx={IP_H / 2} fill="rgba(229,72,77,0.12)" stroke={activeStroke} strokeWidth={active ? 2 : 1.5} />
+                    <circle cx={n.x - IP_W / 2 + 11} cy={n.y} r={3} fill="var(--alert)" />
+                    <text x={n.x + 6} y={n.y + 3} textAnchor="middle" className="cm-nip">{n.label}</text>
+                  </>
+                ) : n.kind === "predicted" ? (
+                  <>
+                    <circle cx={n.x} cy={n.y} r={R_PRED} fill="rgba(229,72,77,0.08)" stroke={activeStroke} strokeWidth={active ? 2 : 1.4} strokeDasharray="4 3" />
+                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel pred" fill="var(--alert)">{n.label}</text>
+                    <text x={n.x} y={n.y + 11} textAnchor="middle" className="cm-nsub" fill="var(--haze)">{n.sub}</text>
+                  </>
+                ) : (
+                  <>
+                    <circle cx={n.x} cy={n.y} r={R_HOST} fill="var(--ink-2)" stroke={activeStroke} strokeWidth={active ? 2.4 : 1.6} />
+                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel host">{n.label}</text>
+                    <text x={n.x} y={n.y + 10} textAnchor="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+      <div className="cm-zoom">
+        <button type="button" onClick={() => zoomBtn(1.25)} aria-label="zoom in">+</button>
+        <button type="button" onClick={() => zoomBtn(1 / 1.25)} aria-label="zoom out">−</button>
+        <button type="button" className="rst" onClick={reset} aria-label="reset view">reset</button>
+      </div>
+    </div>
   );
 }
 
