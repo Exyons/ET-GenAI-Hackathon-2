@@ -53,9 +53,12 @@ type MapNode = {
 };
 type MapEdge = { x1: number; y1: number; x2: number; y2: number; color: string; dashed: boolean; appt: number };
 
-// viewBox is 0 0 760 380; focus centred, predicted directly above it
+// viewBox is 0 0 760 380; focus centred, predicted directly above it.
+// hosts are ovals (ellipses); the constants below are the semi-axes / pill dims.
 const FOCUS = { x: 340, y: 220 };
-const R_FOCUS = 30, R_HOST = 23, R_PRED = 26, IP_W = 96, IP_H = 26;
+const FOCUS_RX = 36, FOCUS_RY = 24, HOST_RX = 30, HOST_RY = 20, R_PRED = 23, IP_W = 92, IP_H = 24;
+// edge endpoints reference the horizontal reach of each shape
+const R_FOCUS = FOCUS_RX, R_HOST = HOST_RX;
 const TACTIC_ABBR: Record<string, string> = {
   exfiltration: "EXFIL", discovery: "DISCVR", lateral_movement: "LATERAL", command_and_control: "C2",
   execution: "EXEC", collection: "COLLECT", persistence: "PERSIST", privilege_escalation: "PRIVESC",
@@ -110,7 +113,7 @@ function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | 
     const py = 74;
     nodes.push({ id: "predicted", kind: "predicted", label: abbr(predicted), sub: "p 1.0",
       subColor: "var(--haze)", stroke: "var(--alert)", x: FOCUS.x, y: py, appt: 82 });
-    edges.push({ x1: FOCUS.x, y1: FOCUS.y - R_FOCUS, x2: FOCUS.x, y2: py + R_PRED + 2, color: "var(--alert)", dashed: true, appt: 82 });
+    edges.push({ x1: FOCUS.x, y1: FOCUS.y - FOCUS_RY, x2: FOCUS.x, y2: py + R_PRED + 2, color: "var(--alert)", dashed: true, appt: 82 });
   }
   return { nodes, edges, predicted };
 }
@@ -320,8 +323,8 @@ export function CommandMap({
                 return (
                   <div className="cm-hrow" key={h.host}>
                     <span className="cm-hdot" style={{ background: c }} />
-                    <span className="cm-hname mono" style={{ color: st === "off" ? "var(--haze)" : "var(--paper)" }}>{h.host} <span style={{ color: "var(--s-auth)", fontSize: 8 }}>{({ linux: "LNX", windows: "WIN", unknown: "—" })[h.os]}</span></span>
-                    <span className="mono" style={{ fontSize: 9, color: c }}>{seen}</span>
+                    <span className="cm-hname mono" style={{ color: st === "off" ? "var(--haze)" : "var(--paper)" }}>{h.host} <span style={{ color: "var(--s-auth)", fontSize: 9 }}>{({ linux: "LNX", windows: "WIN", unknown: "—" })[h.os]}</span></span>
+                    <span className="mono" style={{ fontSize: 10.5, color: c }}>{seen}</span>
                   </div>
                 );
               })}
@@ -375,14 +378,14 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
       <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="cm-map" role="img" aria-label="Attack graph" preserveAspectRatio="xMidYMid meet"
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} style={{ cursor: "grab", touchAction: "none" }}>
         <defs>
-          <marker id="cmArrN" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--s-net)" /></marker>
-          <marker id="cmArrA" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--phosphor)" /></marker>
-          <marker id="cmArrR" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="var(--alert)" /></marker>
+          <marker id="cmArrN" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--s-net)" /></marker>
+          <marker id="cmArrA" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--phosphor)" /></marker>
+          <marker id="cmArrR" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--alert)" /></marker>
         </defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {edges.map((e, i) => (
-            <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={e.color} strokeWidth={e.dashed ? 1.6 : 2}
-              strokeDasharray={e.dashed ? "6 4" : undefined} opacity={op(e.appt)}
+            <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={e.color} strokeWidth={e.dashed ? 1.2 : 1.5}
+              strokeDasharray={e.dashed ? "5 4" : undefined} opacity={op(e.appt)}
               markerEnd={e.color === "var(--s-net)" ? "url(#cmArrN)" : e.color === "var(--alert)" ? "url(#cmArrR)" : "url(#cmArrA)"}
               style={{ transition: "opacity .3s" }} />
           ))}
@@ -394,27 +397,27 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
                 style={{ cursor: "pointer", transition: "opacity .3s" }}>
                 {n.kind === "focus" ? (
                   <>
-                    <circle cx={n.x} cy={n.y} r={R_FOCUS} fill="rgba(229,72,77,0.16)" stroke={activeStroke} strokeWidth={active ? 2.8 : 2} />
-                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel focus">{n.label}</text>
-                    <text x={n.x} y={n.y + 11} textAnchor="middle" className="cm-nsub" fill="var(--phosphor)">{n.sub}</text>
+                    <ellipse cx={n.x} cy={n.y} rx={FOCUS_RX} ry={FOCUS_RY} fill="rgba(229,72,77,0.16)" stroke={activeStroke} strokeWidth={active ? 1.8 : 1.3} />
+                    <text x={n.x} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel focus">{n.label}</text>
+                    <text x={n.x} y={n.y + 9} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--phosphor)">{n.sub}</text>
                   </>
                 ) : n.kind === "ip" ? (
                   <>
-                    <rect x={n.x - IP_W / 2} y={n.y - IP_H / 2} width={IP_W} height={IP_H} rx={IP_H / 2} fill="rgba(229,72,77,0.12)" stroke={activeStroke} strokeWidth={active ? 2 : 1.5} />
-                    <circle cx={n.x - IP_W / 2 + 11} cy={n.y} r={3} fill="var(--alert)" />
-                    <text x={n.x + 6} y={n.y + 3} textAnchor="middle" className="cm-nip">{n.label}</text>
+                    <rect x={n.x - IP_W / 2} y={n.y - IP_H / 2} width={IP_W} height={IP_H} rx={IP_H / 2} fill="rgba(229,72,77,0.12)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} />
+                    <circle cx={n.x - IP_W / 2 + 10} cy={n.y} r={2.5} fill="var(--alert)" />
+                    <text x={n.x + 5} y={n.y} textAnchor="middle" dominantBaseline="middle" className="cm-nip">{n.label}</text>
                   </>
                 ) : n.kind === "predicted" ? (
                   <>
-                    <circle cx={n.x} cy={n.y} r={R_PRED} fill="rgba(229,72,77,0.08)" stroke={activeStroke} strokeWidth={active ? 2 : 1.4} strokeDasharray="4 3" />
-                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel pred" fill="var(--alert)">{n.label}</text>
-                    <text x={n.x} y={n.y + 11} textAnchor="middle" className="cm-nsub" fill="var(--haze)">{n.sub}</text>
+                    <circle cx={n.x} cy={n.y} r={R_PRED} fill="rgba(229,72,77,0.08)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} strokeDasharray="4 3" />
+                    <text x={n.x} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel pred" fill="var(--alert)">{n.label}</text>
+                    <text x={n.x} y={n.y + 8} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--haze)">{n.sub}</text>
                   </>
                 ) : (
                   <>
-                    <circle cx={n.x} cy={n.y} r={R_HOST} fill="var(--ink-2)" stroke={activeStroke} strokeWidth={active ? 2.4 : 1.6} />
-                    <text x={n.x} y={n.y - 1} textAnchor="middle" className="cm-nlabel host">{n.label}</text>
-                    <text x={n.x} y={n.y + 10} textAnchor="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
+                    <ellipse cx={n.x} cy={n.y} rx={HOST_RX} ry={HOST_RY} fill="var(--ink-2)" stroke={activeStroke} strokeWidth={active ? 1.6 : 1.1} />
+                    <text x={n.x} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel host">{n.label}</text>
+                    <text x={n.x} y={n.y + 8} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
                   </>
                 )}
               </g>
