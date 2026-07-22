@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
@@ -259,7 +260,9 @@ class LivePipeline:
 
     async def _attribute(self, iid: str, inc: Incident) -> None:
         try:
-            view = self.attribute_fn(inc)
+            # attribute_fn does blocking LLM + embedding work; run it off the event
+            # loop so ingest/tick don't stall every other request (status, SSE, …)
+            view = await asyncio.to_thread(self.attribute_fn, inc)
             self.attributions[iid] = view
             self.stats["attributed"] += 1
             self.attr_error = None
