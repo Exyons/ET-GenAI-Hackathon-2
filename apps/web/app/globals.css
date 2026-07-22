@@ -864,7 +864,7 @@ a.kpi.drill:hover { background: #1a2536; }
 .tsum-scope.bad { color: var(--alert); border-color: rgba(229, 72, 77, 0.45); }
 
 /* ================= incident workspace (Incident Page 1b) ================= */
-.iw { min-height: 100vh; background: var(--ink); color: var(--paper); }
+.iw { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; background: var(--ink); color: var(--paper); }
 .iw-bar { display: flex; align-items: center; gap: 14px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
 .iw-brand { display: flex; align-items: baseline; gap: 10px; }
 .iw-brand .deva { font: 700 15px var(--font-mono); color: var(--phosphor); }
@@ -880,7 +880,7 @@ a.kpi.drill:hover { background: #1a2536; }
 .iw-chip.nav:hover { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.4); }
 .iw-chip.clock { font-size: 11px; letter-spacing: 0.4px; }
 
-.iw-body { display: grid; grid-template-columns: 300px minmax(0, 1fr) 292px; align-items: stretch; }
+.iw-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 292px; align-items: stretch; }
 .iw-body.no-rail { grid-template-columns: 300px minmax(0, 1fr); }
 
 /* queue */
@@ -969,15 +969,15 @@ a.kpi.drill:hover { background: #1a2536; }
 .iw-foot-note { font: 400 12px var(--font-display); color: var(--haze); }
 
 /* rail */
-.iw-rail { border-left: 1px solid var(--line); background: var(--ink-2); padding: 18px; }
+.iw-rail { border-left: 1px solid var(--line); background: var(--ink-2); padding: 18px; min-width: 0; overflow-x: hidden; }
 .iw-rail-head { font: 700 10px var(--font-mono); letter-spacing: 2px; color: var(--haze); margin-bottom: 12px; }
 .iw-tl { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.iw-tlrow { display: flex; gap: 10px; }
+.iw-tlrow { display: flex; gap: 10px; min-width: 0; }
 .iw-tltime { font: 400 10.5px var(--font-mono); color: var(--haze); flex: none; }
-.iw-tltext { font: 400 11.5px/1.45 var(--font-display); color: var(--paper); }
+.iw-tltext { font: 400 11.5px/1.45 var(--font-display); color: var(--paper); min-width: 0; overflow-wrap: anywhere; }
 .iw-phase { font-size: 10px; }
 .iw-techs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
-.iw-tech { font: 500 11px var(--font-mono); color: var(--violet); }
+.iw-tech { font: 500 11px var(--font-mono); color: var(--violet); overflow-wrap: anywhere; }
 .iw-next { border: 1px solid rgba(229, 72, 77, 0.35); border-radius: 6px; background: rgba(229, 72, 77, 0.06); padding: 10px 12px; }
 .iw-next-k { font-size: 9.5px; letter-spacing: 1.5px; color: var(--alert); margin-bottom: 4px; }
 .iw-next-t { font: 400 11.5px/1.5 var(--font-display); color: var(--paper); }
