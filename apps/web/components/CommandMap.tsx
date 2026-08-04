@@ -47,16 +47,25 @@ function fmtBytes(n: number): string {
 
 // ---- graph model ------------------------------------------------------------
 type MapNode = {
-  id: string; kind: "focus" | "host" | "ip" | "predicted";
+  id: string; kind: "focus" | "host" | "ip" | "predicted" | "account" | "process" | "more";
   label: string; sub: string; subColor: string; stroke: string;
   x: number; y: number; appt: number;
 };
-type MapEdge = { x1: number; y1: number; x2: number; y2: number; color: string; dashed: boolean; appt: number };
+type MapEdge = { x1: number; y1: number; x2: number; y2: number; color: string; dashed: boolean; appt: number; marker: string };
 
-// viewBox is 0 0 760 380; focus centred, predicted directly above it.
-// hosts are ovals (ellipses); the constants below are the semi-axes / pill dims.
-const FOCUS = { x: 340, y: 220 };
+// The map is a fusion graph: the three telemetry pillars meet on one host.
+//   accounts (auth) ↘        ↗ C2 addresses (network)
+//                    [focus]
+//   lateral hosts ↗          ↘ processes (endpoint)
+// viewBox is 0 0 1100 500; focus centred, predicted tactic directly above it.
+// hosts are ovals (ellipses); the constants below are the semi-axes / box dims.
+const VB_W = 1100, VB_H = 500;
+const FOCUS = { x: 520, y: 252 };
 const FOCUS_RX = 36, FOCUS_RY = 24, HOST_RX = 30, HOST_RY = 20, R_PRED = 23, IP_W = 92, IP_H = 24;
+const ACC_W = 104, ACC_H = 26, PROC_W = 118, PROC_H = 28;
+const X_LEFT = 145, X_IP1 = 810, X_IP2 = 962, Y_PROC = 452;
+// how much of each class the graph draws before it says "+N more"
+const MAX_IPS = 14, IP_PER_COL = 7, MAX_ACCOUNTS = 3, MAX_PROCS = 4, MAX_LATERAL = 4;
 // edge endpoints reference the horizontal reach of each shape
 const R_FOCUS = FOCUS_RX, R_HOST = HOST_RX;
 const TACTIC_ABBR: Record<string, string> = {
@@ -69,6 +78,8 @@ function abbr(t: string): string { return TACTIC_ABBR[t] ?? t.replace(/[-_]/g, "
 function spread(i: number, n: number, top: number, bot: number): number {
   return n <= 1 ? (top + bot) / 2 : top + (i / (n - 1)) * (bot - top);
 }
+// SVG has no text-overflow, so clip by character count
+function trunc(s: string, n: number): string { return s.length > n ? `${s.slice(0, n - 1)}…` : s; }
 
 function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | null) {
   const nodes: MapNode[] = [];
@@ -79,41 +90,101 @@ function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | 
   nodes.push({ id: focus.id, kind: "focus", label: focus.entity, sub: focus.compound_score.toFixed(2),
     subColor: "var(--phosphor)", stroke: "var(--alert)", x: FOCUS.x, y: FOCUS.y, appt: 0 });
 
-  // C2 external IPs from the focus incident's network flows (public only)
+  const timeline = focusDetail?.timeline ?? [];
+
+  // ---- network pillar: external C2 addresses (public only) ----
   const ipTimes = new Map<string, number>();
-  for (const e of focusDetail?.timeline ?? []) {
+  for (const e of timeline) {
     if (e.dst_ip && isPublicIp(e.dst_ip)) ipTimes.set(e.dst_ip, Math.min(ipTimes.get(e.dst_ip) ?? Infinity, new Date(e.timestamp).getTime()));
   }
-  const ips = [...ipTimes.entries()].sort((a, b) => a[1] - b[1]).slice(0, 5);
-  const laterals = incidents.slice(1, 5);
+  const ipAll = [...ipTimes.entries()].sort((a, b) => a[1] - b[1]);
+  const ips = ipAll.slice(0, MAX_IPS);
 
+  // ---- auth pillar: the accounts driving the intrusion ----
+  const accStat = new Map<string, { t: number; n: number }>();
+  for (const e of timeline) {
+    if (!e.actor || e.actor === focus.entity || e.event_type === "network_flow") continue;
+    const t = new Date(e.timestamp).getTime();
+    const cur = accStat.get(e.actor);
+    accStat.set(e.actor, { t: Math.min(cur?.t ?? Infinity, t), n: (cur?.n ?? 0) + 1 });
+  }
+  const accounts = [...accStat.entries()].sort((a, b) => a[1].t - b[1].t).slice(0, MAX_ACCOUNTS);
+
+  // ---- endpoint pillar: commands executed on the focus host ----
+  const procStat = new Map<string, { t: number; n: number; phase: string }>();
+  for (const e of timeline) {
+    if (e.event_type !== "process") continue;
+    const cmd = e.detail.replace(/^executed\s+/, "").trim();
+    if (!cmd) continue;
+    const t = new Date(e.timestamp).getTime();
+    const cur = procStat.get(cmd);
+    procStat.set(cmd, { t: Math.min(cur?.t ?? Infinity, t), n: (cur?.n ?? 0) + 1, phase: e.phase });
+  }
+  const procs = [...procStat.entries()].sort((a, b) => a[1].t - b[1].t).slice(0, MAX_PROCS);
+
+  const laterals = incidents.slice(1, 1 + MAX_LATERAL);
+
+  // reveal order for the replay scrubber — everything in chronological order
   const timed = [
-    ...ips.map(([ip, t]) => ({ key: ip, t })),
+    ...ips.map(([ip, t]) => ({ key: `ip:${ip}`, t })),
+    ...accounts.map(([a, s]) => ({ key: `acct:${a}`, t: s.t })),
+    ...procs.map(([c, s]) => ({ key: `proc:${c}`, t: s.t })),
     ...laterals.map((i) => ({ key: i.id, t: new Date(i.start).getTime() })),
   ].sort((a, b) => a.t - b.t);
   const appt = new Map<string, number>();
   timed.forEach((x, i) => appt.set(x.key, timed.length <= 1 ? 45 : 16 + (i / (timed.length - 1)) * 58));
+  const at = (k: string, d: number) => appt.get(k) ?? d;
 
+  // C2 addresses fan out on the right, balanced across up to two columns
+  const nCols = Math.max(1, Math.ceil(ips.length / IP_PER_COL));
+  const perCol = Math.ceil(ips.length / nCols);
   ips.forEach(([ip], i) => {
-    const y = spread(i, ips.length, 120, 350), x = 610;
-    nodes.push({ id: `ip:${ip}`, kind: "ip", label: ip, sub: "C2", subColor: "var(--alert)",
-      stroke: "var(--alert)", x, y, appt: appt.get(ip) ?? 40 });
-    edges.push({ x1: FOCUS.x + R_FOCUS, y1: FOCUS.y, x2: x - IP_W / 2 - 4, y2: y, color: "var(--s-net)", dashed: false, appt: appt.get(ip) ?? 40 });
+    const col = Math.floor(i / perCol), idx = i % perCol;
+    const nInCol = Math.min(perCol, ips.length - col * perCol);
+    const x = col === 0 ? X_IP1 : X_IP2, y = spread(idx, nInCol, 92, 430);
+    const a = at(`ip:${ip}`, 40);
+    nodes.push({ id: `ip:${ip}`, kind: "ip", label: ip, sub: "C2", subColor: "var(--alert)", stroke: "var(--alert)", x, y, appt: a });
+    edges.push({ x1: FOCUS.x + R_FOCUS, y1: FOCUS.y, x2: x - IP_W / 2 - 4, y2: y, color: "var(--s-net)", dashed: false, appt: a, marker: "cmArrN" });
   });
+  if (ipAll.length > ips.length) {
+    nodes.push({ id: "more:ip", kind: "more", label: `+${ipAll.length - ips.length} more`, sub: "", subColor: "var(--haze)",
+      stroke: "var(--line)", x: X_IP1, y: 464, appt: 0 });
+  }
+
+  // accounts upper-left — they authenticate *into* the focus host
+  accounts.forEach(([acct, s], i) => {
+    const y = spread(i, accounts.length, 92, 196), x = X_LEFT;
+    const a = at(`acct:${acct}`, 30);
+    nodes.push({ id: `acct:${acct}`, kind: "account", label: trunc(acct, 14), sub: `${s.n} ev`, subColor: "var(--haze)",
+      stroke: "var(--s-auth)", x, y, appt: a });
+    edges.push({ x1: x + ACC_W / 2, y1: y, x2: FOCUS.x - R_FOCUS - 4, y2: FOCUS.y, color: "var(--s-auth)", dashed: false, appt: a, marker: "cmArrU" });
+  });
+
+  // lateral hosts lower-left — the focus reaches out to them
   laterals.forEach((inc, i) => {
-    const y = spread(i, laterals.length, 140, 330), x = 120;
+    const y = spread(i, laterals.length, 296, 440), x = X_LEFT;
+    const a = at(inc.id, 50);
     nodes.push({ id: inc.id, kind: "host", label: inc.entity, sub: inc.compound_score.toFixed(2),
       subColor: inc.compound_score > 0.3 ? "var(--phosphor)" : "var(--haze)",
-      stroke: inc.high_confidence ? "var(--alert)" : "var(--phosphor)", x, y, appt: appt.get(inc.id) ?? 50 });
-    edges.push({ x1: FOCUS.x - R_FOCUS, y1: FOCUS.y, x2: x + R_HOST + 4, y2: y, color: "var(--phosphor)", dashed: true, appt: appt.get(inc.id) ?? 50 });
+      stroke: inc.high_confidence ? "var(--alert)" : "var(--phosphor)", x, y, appt: a });
+    edges.push({ x1: FOCUS.x - R_FOCUS, y1: FOCUS.y, x2: x + R_HOST + 4, y2: y, color: "var(--phosphor)", dashed: true, appt: a, marker: "cmArrA" });
+  });
+
+  // processes along the bottom — what actually ran on the box
+  procs.forEach(([cmd, s], i) => {
+    const x = spread(i, procs.length, 300, 700), y = Y_PROC;
+    const a = at(`proc:${cmd}`, 45);
+    nodes.push({ id: `proc:${cmd}`, kind: "process", label: trunc(cmd, 17), sub: s.n > 1 ? `×${s.n}` : "run",
+      subColor: "var(--haze)", stroke: "var(--s-proc)", x, y, appt: a });
+    edges.push({ x1: FOCUS.x, y1: FOCUS.y + FOCUS_RY, x2: x, y2: y - PROC_H / 2 - 4, color: "var(--s-proc)", dashed: false, appt: a, marker: "cmArrP" });
   });
 
   const predicted = focusDetail?.attribution.predicted_next ?? "";
   if (predicted) {
-    const py = 74;
+    const py = 66;
     nodes.push({ id: "predicted", kind: "predicted", label: abbr(predicted), sub: "p 1.0",
       subColor: "var(--haze)", stroke: "var(--alert)", x: FOCUS.x, y: py, appt: 82 });
-    edges.push({ x1: FOCUS.x, y1: FOCUS.y - FOCUS_RY, x2: FOCUS.x, y2: py + R_PRED + 2, color: "var(--alert)", dashed: true, appt: 82 });
+    edges.push({ x1: FOCUS.x, y1: FOCUS.y - FOCUS_RY, x2: FOCUS.x, y2: py + R_PRED + 2, color: "var(--alert)", dashed: true, appt: 82, marker: "cmArrR" });
   }
   return { nodes, edges, predicted };
 }
@@ -258,7 +329,16 @@ export function CommandMap({
           <div className="cm-mapwrap">
             {nodes.length === 0
               ? <div className="cm-mapempty mono">Correlation quiet. When hosts start chaining kill-chain phases, the attack graph draws itself here.</div>
-              : <AttackSvg nodes={nodes} edges={edges} t={t} sel={sel} onSelect={setSel} />}
+              : <>
+                <AttackSvg nodes={nodes} edges={edges} t={t} sel={sel} onSelect={setSel} />
+                <div className="cm-maplegend mono">
+                  <span><i style={{ background: "var(--s-auth)" }} />account</span>
+                  <span><i style={{ background: "var(--phosphor)" }} />lateral host</span>
+                  <span><i style={{ background: "var(--s-proc)" }} />process</span>
+                  <span><i style={{ background: "var(--s-net)" }} />C2 address</span>
+                  <span><i style={{ background: "var(--alert)" }} />predicted</span>
+                </div>
+              </>}
           </div>
           {nodes.length > 0 && (
             <div className="cm-scrub">
@@ -337,8 +417,6 @@ export function CommandMap({
 }
 
 // ---- attack SVG (pan + zoom) ------------------------------------------------
-const VB_W = 760, VB_H = 380;
-
 function AttackSvg({ nodes, edges, t, sel, onSelect }:
   { nodes: MapNode[]; edges: MapEdge[]; t: number; sel: string | null; onSelect: (id: string) => void }) {
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
@@ -371,7 +449,8 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
   const onUp = () => { drag.current = null; };
   const zoomBtn = (f: number) => setView((v) => { const nk = clampK(v.k * f); return { k: nk, x: VB_W / 2 - (VB_W / 2 - v.x) * (nk / v.k), y: VB_H / 2 - (VB_H / 2 - v.y) * (nk / v.k) }; });
   const reset = () => setView({ k: 1, x: 0, y: 0 });
-  const pick = (id: string) => { if (!drag.current?.moved) onSelect(id); };
+  // "+N more" is a count, not a thing you can inspect
+  const pick = (id: string) => { if (!drag.current?.moved && !id.startsWith("more:")) onSelect(id); };
 
   return (
     <div className="cm-mapinner" ref={wrapRef}>
@@ -381,12 +460,13 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
           <marker id="cmArrN" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--s-net)" /></marker>
           <marker id="cmArrA" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--phosphor)" /></marker>
           <marker id="cmArrR" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--alert)" /></marker>
+          <marker id="cmArrU" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--s-auth)" /></marker>
+          <marker id="cmArrP" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L4.2,2.5 L0,5 Z" fill="var(--s-proc)" /></marker>
         </defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {edges.map((e, i) => (
             <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={e.color} strokeWidth={e.dashed ? 1.2 : 1.5}
-              strokeDasharray={e.dashed ? "5 4" : undefined} opacity={op(e.appt)}
-              markerEnd={e.color === "var(--s-net)" ? "url(#cmArrN)" : e.color === "var(--alert)" ? "url(#cmArrR)" : "url(#cmArrA)"}
+              strokeDasharray={e.dashed ? "5 4" : undefined} opacity={op(e.appt)} markerEnd={`url(#${e.marker})`}
               style={{ transition: "opacity .3s" }} />
           ))}
           {nodes.map((n) => {
@@ -407,6 +487,21 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
                     <circle cx={n.x - IP_W / 2 + 10} cy={n.y} r={2.5} fill="var(--alert)" />
                     <text x={n.x + 5} y={n.y} textAnchor="middle" dominantBaseline="middle" className="cm-nip">{n.label}</text>
                   </>
+                ) : n.kind === "account" ? (
+                  <>
+                    <rect x={n.x - ACC_W / 2} y={n.y - ACC_H / 2} width={ACC_W} height={ACC_H} rx={5} fill="var(--ink-2)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} />
+                    <circle cx={n.x - ACC_W / 2 + 11} cy={n.y} r={2.5} fill="var(--s-auth)" />
+                    <text x={n.x + 6} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel host">{n.label}</text>
+                    <text x={n.x + 6} y={n.y + 7} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
+                  </>
+                ) : n.kind === "process" ? (
+                  <>
+                    <rect x={n.x - PROC_W / 2} y={n.y - PROC_H / 2} width={PROC_W} height={PROC_H} rx={4} fill="var(--ink-2)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} />
+                    <text x={n.x} y={n.y - 4} textAnchor="middle" dominantBaseline="middle" className="cm-nip">{n.label}</text>
+                    <text x={n.x} y={n.y + 7} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill={n.subColor}>{n.sub}</text>
+                  </>
+                ) : n.kind === "more" ? (
+                  <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--haze)">{n.label}</text>
                 ) : n.kind === "predicted" ? (
                   <>
                     <circle cx={n.x} cy={n.y} r={R_PRED} fill="rgba(229,72,77,0.08)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} strokeDasharray="4 3" />
@@ -461,7 +556,7 @@ function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, on
               <>
                 <div className="cm-evrow"><span className="t mono">flows</span><span className="x">{d.flow_count} connections · {fmtBytes(d.total_bytes)} out</span></div>
                 <div className="cm-evrow"><span className="t mono">intel</span><span className="x">{listed ? `on ${d.reputation.sources.length} blocklist${d.reputation.sources.length === 1 ? "" : "s"}: ${d.reputation.sources.join(", ")}` : (d.provider ? `${d.provider}${d.city ? ` · ${d.city}` : ""}` : "no offline record")}</span></div>
-                {d.hosts.length > 0 && <div className="cm-evrow"><span className="t mono">hosts</span><span className="x">{d.hosts.join(", ")}</span></div>}
+                {d.hosts.length > 0 && <div className="cm-evrow" title={d.hosts.join(", ")}><span className="t mono">hosts</span><span className="x">{d.hosts.join(", ")}</span></div>}
               </>
             )}
           </div>
@@ -472,6 +567,55 @@ function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, on
               {listed ? "already on blocklist" : busy ? "blocking…" : <>Block this address <Icon name="chevron" /></>}
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sel.startsWith("acct:")) {
+    const acct = sel.slice(5);
+    const evs = (focusDetail?.timeline ?? []).filter((e) => e.actor === acct);
+    const phases = [...new Set(evs.map((e) => e.phase))];
+    return (
+      <div className="cm-detail" style={{ borderLeftColor: "var(--s-auth)" }}>
+        <div className="cm-detail-head">
+          <span className="cm-detail-entity">{acct}</span>
+          <span className="cm-badge watch">ACCOUNT</span>
+          <span className="spacer" /><span className="cm-detail-kind mono">identity · auth</span>
+        </div>
+        <div className="cm-evi">
+          <div className="k mono">ACTIVITY ON {focus?.entity ?? "THIS HOST"}</div>
+          {evs.slice(-4).map((e, i) => (
+            <div className="cm-evrow" key={i}><span className="t mono">{clock(e.timestamp)}</span><span className="x" title={e.detail}>{e.detail}</span></div>
+          ))}
+        </div>
+        <div className="cm-metabox" style={{ marginTop: 10 }}>
+          <div className="k mono">WHY IT MATTERS</div>
+          <div className="x">{evs.length} event{evs.length === 1 ? "" : "s"} across {phases.length} kill-chain phase{phases.length === 1 ? "" : "s"}. Valid credentials are how APTs move without tripping a signature — this is the identity to disable or force a reset on.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sel.startsWith("proc:")) {
+    const cmd = sel.slice(5);
+    const evs = (focusDetail?.timeline ?? []).filter((e) => e.event_type === "process" && e.detail.replace(/^executed\s+/, "").trim() === cmd);
+    const first = evs[0];
+    return (
+      <div className="cm-detail" style={{ borderLeftColor: "var(--s-proc)" }}>
+        <div className="cm-detail-head">
+          <span className="cm-detail-entity">process</span>
+          <span className="cm-badge watch">{first ? first.phase.replace(/_/g, " ").toUpperCase() : "ENDPOINT"}</span>
+          <span className="spacer" /><span className="cm-detail-kind mono">endpoint · {evs.length} run{evs.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="cm-evi">
+          <div className="k mono">COMMAND</div>
+          <div className="cm-cmd mono" title={cmd}>{cmd}</div>
+          {first && <div className="cm-evrow" style={{ marginTop: 8 }}><span className="t mono">{clock(first.timestamp)}</span><span className="x">first seen{first.actor ? ` · as ${first.actor}` : ""}</span></div>}
+        </div>
+        <div className="cm-metabox" style={{ marginTop: 10 }}>
+          <div className="k mono">WHY IT MATTERS</div>
+          <div className="x">Endpoint telemetry is the pillar that turns a suspicious login into a confirmed intrusion — what the intruder actually ran once they were in.</div>
         </div>
       </div>
     );
@@ -515,7 +659,13 @@ function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, on
         <div className="cm-evi">
           <div className="k mono">{hi ? "WHY — FUSED EVIDENCE" : "WHY — FLAGGED SIGNALS"}</div>
           {evidence.length === 0 ? <div className="mono dim" style={{ fontSize: 11 }}>loading timeline…</div> : evidence.map((e, i) => (
-            <div className="cm-evrow" key={i}><span className="t mono">{clock(e.timestamp)}</span><span className="x">{e.detail} <span className="tag" style={{ color: PHASE_COLOR[e.phase] ?? "var(--haze)" }}>· {e.phase.replace(/_/g, " ")}</span></span></div>
+            <div className="cm-evrow" key={i} title={`${e.detail} · ${e.phase.replace(/_/g, " ")}`}>
+              <span className="t mono">{clock(e.timestamp)}</span>
+              <span className="x split">
+                <span className="d">{e.detail}</span>
+                <span className="tag" style={{ color: PHASE_COLOR[e.phase] ?? "var(--haze)" }}>· {e.phase.replace(/_/g, " ")}</span>
+              </span>
+            </div>
           ))}
         </div>
         <div className="cm-vsep" />
