@@ -68,6 +68,12 @@ const X_LEFT = 145, X_IP1 = 810, X_IP2 = 962, Y_PROC = 452;
 const MAX_IPS = 14, IP_PER_COL = 7, MAX_ACCOUNTS = 3, MAX_PROCS = 4, MAX_LATERAL = 4;
 // edge endpoints reference the horizontal reach of each shape
 const R_FOCUS = FOCUS_RX, R_HOST = HOST_RX;
+// Node fills must be OPAQUE: edges are drawn first, so a translucent fill lets
+// the lines show through the node instead of being occluded by it. color-mix
+// keeps the tint theme-aware while still hiding whatever passes underneath.
+const TINT_FOCUS = "color-mix(in srgb, var(--alert) 16%, var(--ink-2))";
+const TINT_IP = "color-mix(in srgb, var(--alert) 12%, var(--ink-2))";
+const TINT_PRED = "color-mix(in srgb, var(--alert) 9%, var(--ink-2))";
 const TACTIC_ABBR: Record<string, string> = {
   exfiltration: "EXFIL", discovery: "DISCVR", lateral_movement: "LATERAL", command_and_control: "C2",
   execution: "EXEC", collection: "COLLECT", persistence: "PERSIST", privilege_escalation: "PRIVESC",
@@ -147,7 +153,10 @@ function buildGraph(incidents: IncidentSummary[], focusDetail: IncidentDetail | 
     edges.push({ x1: FOCUS.x + R_FOCUS, y1: FOCUS.y, x2: x - IP_W / 2 - 4, y2: y, color: "var(--s-net)", dashed: false, appt: a, marker: "cmArrN" });
   });
   if (ipAll.length > ips.length) {
-    nodes.push({ id: "more:ip", kind: "more", label: `+${ipAll.length - ips.length} more`, sub: "", subColor: "var(--haze)",
+    // clickable: the detail panel lists the addresses that did not fit
+    const hidden = ipAll.slice(MAX_IPS).map(([ip]) => ip);
+    nodes.push({ id: `more:ip:${hidden.join(",")}`, kind: "more",
+      label: `+${hidden.length} more — click to list`, sub: "", subColor: "var(--haze)",
       stroke: "var(--line)", x: X_IP1, y: 464, appt: 0 });
   }
 
@@ -253,14 +262,26 @@ export function CommandMap({
   // play/pause the replay: advance t, loop back to 0 when it reaches the end
   useEffect(() => {
     if (!playing) return;
-    const h = setInterval(() => setT((v) => (v >= 100 ? 0 : Math.min(100, v + 2))), 90);
+    // run once to the end and stop — a looping replay makes a live console look
+    // like it is still animating when nothing is actually happening
+    const h = setInterval(() => setT((v) => {
+      if (v >= 100) { setPlaying(false); return 100; }
+      return Math.min(100, v + 2);
+    }), 90);
     return () => clearInterval(h);
   }, [playing]);
 
-  // default selection = focus
+  // t === 100 shows every node, i.e. the current state of the incident
+  const isLive = t >= 100;
+  const play = () => { if (t >= 100) setT(0); setPlaying(true); };
+  const resetLive = () => { setPlaying(false); setT(100); };
+
+  // default selection = focus. An "ip:" selection is kept even when it has no
+  // node on the map — that is how the overflow list drills into an address the
+  // graph deliberately did not draw.
   useEffect(() => {
     if (nodes.length === 0) { setSel(null); return; }
-    if (!sel || !nodes.some((n) => n.id === sel)) setSel(nodes[0].id);
+    if (!sel || (!sel.startsWith("ip:") && !nodes.some((n) => n.id === sel))) setSel(nodes[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes.map((n) => n.id).join(",")]);
 
@@ -349,14 +370,23 @@ export function CommandMap({
           {nodes.length > 0 && (
             <div className="cm-scrub">
               <div className="cm-scrub-head">
-                <button type="button" className="cm-play" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "pause" : "play"}>
+                <button type="button" className="cm-play" onClick={() => (playing ? setPlaying(false) : play())}
+                  aria-label={playing ? "pause replay" : t >= 100 ? "replay from the start" : "resume replay"}>
                   {playing
                     ? <svg viewBox="0 0 24 24" width="11" height="11"><rect x="6" y="5" width="4" height="14" fill="currentColor" /><rect x="14" y="5" width="4" height="14" fill="currentColor" /></svg>
                     : <svg viewBox="0 0 24 24" width="11" height="11"><path d="M7 5v14l11-7z" fill="currentColor" /></svg>}
                 </button>
                 <span className="k mono">REPLAY · watch the attack build</span>
                 <span className="spacer" />
-                <span className="mono" style={{ color: isPred ? "var(--alert)" : "var(--calm)" }}>{isPred ? "▶ predicted" : "▶ live · now"}</span>
+                {!isLive && (
+                  <button type="button" className="cm-live-btn mono" onClick={resetLive}
+                    title="Jump back to the current state of the incident">
+                    <Icon name="refresh" /> reset to live
+                  </button>
+                )}
+                <span className="mono" style={{ color: isPred ? "var(--alert)" : "var(--calm)" }}>
+                  {isLive ? "● live · now" : isPred ? "▶ predicted" : "▶ replaying"}
+                </span>
               </div>
               <div className="cm-track">
                 <div className="cm-track-base" />
@@ -377,7 +407,8 @@ export function CommandMap({
         {/* right: node detail + system health */}
         <div className="cm-right">
           {sel && <NodeDetail sel={sel} focus={focus} focusDetail={focusDetail} incCache={incCache} ipCache={ipCache} attributed={attributed}
-            onBlocked={(ip) => getNetworkDetail(ip).then((d) => setIpCache((c) => ({ ...c, [ip]: d }))).catch(() => {})} />}
+            onBlocked={(ip) => getNetworkDetail(ip).then((d) => setIpCache((c) => ({ ...c, [ip]: d }))).catch(() => {})}
+            onPickIp={(ip) => setSel(`ip:${ip}`)} />}
           <div className="cm-health">
             <div className="cm-rail-head">SYSTEM HEALTH</div>
             <div>
@@ -455,8 +486,7 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
   const onUp = () => { drag.current = null; };
   const zoomBtn = (f: number) => setView((v) => { const nk = clampK(v.k * f); return { k: nk, x: VB_W / 2 - (VB_W / 2 - v.x) * (nk / v.k), y: VB_H / 2 - (VB_H / 2 - v.y) * (nk / v.k) }; });
   const reset = () => setView({ k: 1, x: 0, y: 0 });
-  // "+N more" is a count, not a thing you can inspect
-  const pick = (id: string) => { if (!drag.current?.moved && !id.startsWith("more:")) onSelect(id); };
+  const pick = (id: string) => { if (!drag.current?.moved) onSelect(id); };
 
   return (
     <div className="cm-mapinner" ref={wrapRef}>
@@ -479,17 +509,17 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
             const active = n.id === sel;
             const activeStroke = active ? "var(--phosphor)" : n.stroke;
             return (
-              <g key={n.id} onClick={() => pick(n.id)} onPointerDown={(e) => e.stopPropagation()} opacity={op(n.appt)}
+              <g key={n.id} className="cm-node" onClick={() => pick(n.id)} onPointerDown={(e) => e.stopPropagation()} opacity={op(n.appt)}
                 style={{ cursor: "pointer", transition: "opacity .3s" }}>
                 {n.kind === "focus" ? (
                   <>
-                    <ellipse cx={n.x} cy={n.y} rx={FOCUS_RX} ry={FOCUS_RY} fill="rgba(229,72,77,0.16)" stroke={activeStroke} strokeWidth={active ? 1.8 : 1.3} />
+                    <ellipse cx={n.x} cy={n.y} rx={FOCUS_RX} ry={FOCUS_RY} fill={TINT_FOCUS} stroke={activeStroke} strokeWidth={active ? 1.8 : 1.3} />
                     <text x={n.x} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel focus">{n.label}</text>
                     <text x={n.x} y={n.y + 9} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--phosphor)">{n.sub}</text>
                   </>
                 ) : n.kind === "ip" ? (
                   <>
-                    <rect x={n.x - IP_W / 2} y={n.y - IP_H / 2} width={IP_W} height={IP_H} rx={IP_H / 2} fill="rgba(229,72,77,0.12)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} />
+                    <rect x={n.x - IP_W / 2} y={n.y - IP_H / 2} width={IP_W} height={IP_H} rx={IP_H / 2} fill={TINT_IP} stroke={activeStroke} strokeWidth={active ? 1.4 : 1} />
                     <circle cx={n.x - IP_W / 2 + 10} cy={n.y} r={2.5} fill="var(--alert)" />
                     <text x={n.x + 5} y={n.y} textAnchor="middle" dominantBaseline="middle" className="cm-nip">{n.label}</text>
                   </>
@@ -510,7 +540,7 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
                   <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--haze)">{n.label}</text>
                 ) : n.kind === "predicted" ? (
                   <>
-                    <circle cx={n.x} cy={n.y} r={R_PRED} fill="rgba(229,72,77,0.08)" stroke={activeStroke} strokeWidth={active ? 1.4 : 1} strokeDasharray="4 3" />
+                    <circle cx={n.x} cy={n.y} r={R_PRED} fill={TINT_PRED} stroke={activeStroke} strokeWidth={active ? 1.4 : 1} strokeDasharray="4 3" />
                     <text x={n.x} y={n.y - 3} textAnchor="middle" dominantBaseline="middle" className="cm-nlabel pred" fill="var(--alert)">{n.label}</text>
                     <text x={n.x} y={n.y + 8} textAnchor="middle" dominantBaseline="middle" className="cm-nsub" fill="var(--haze)">{n.sub}</text>
                   </>
@@ -536,10 +566,10 @@ function AttackSvg({ nodes, edges, t, sel, onSelect }:
 }
 
 // ---- node detail ------------------------------------------------------------
-function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, onBlocked }: {
+function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, onBlocked, onPickIp }: {
   sel: string; focus: IncidentSummary | null; focusDetail: IncidentDetail | null;
   incCache: Record<string, IncidentDetail>; ipCache: Record<string, NetworkDetail>;
-  attributed: Set<string>; onBlocked: (ip: string) => void;
+  attributed: Set<string>; onBlocked: (ip: string) => void; onPickIp: (ip: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -573,6 +603,35 @@ function NodeDetail({ sel, focus, focusDetail, incCache, ipCache, attributed, on
               {listed ? "already on blocklist" : busy ? "blocking…" : <>Block this address <Icon name="chevron" /></>}
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sel.startsWith("more:ip:")) {
+    const hidden = sel.slice(8).split(",").filter(Boolean);
+    return (
+      <div className="cm-detail" style={{ borderLeftColor: "var(--alert)" }}>
+        <div className="cm-detail-head">
+          <span className="cm-detail-entity">{hidden.length} more addresses</span>
+          <span className="cm-badge warn">NOT DRAWN</span>
+          <span className="spacer" /><span className="cm-detail-kind mono">C2 overflow</span>
+        </div>
+        <div className="cm-evi">
+          <div className="k mono">CONTACTED BUT OFF THE MAP</div>
+          <div className="cm-morelist">
+            {hidden.map((ip) => (
+              <button type="button" key={ip} className="cm-morerow mono" onClick={() => onPickIp(ip)}>
+                <span className="dot" />{ip}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="cm-metabox bad" style={{ marginTop: 10 }}>
+          <div className="k mono">WHY THEY ARE HIDDEN</div>
+          <div className="x">The graph draws the {MAX_IPS} earliest external destinations so it stays
+            readable. These were contacted too — click one to inspect it. This many distinct
+            addresses in one window is itself a signal: the channel may be rotating.</div>
         </div>
       </div>
     );

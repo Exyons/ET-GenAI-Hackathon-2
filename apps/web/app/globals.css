@@ -1115,6 +1115,33 @@ a.cm-cell:hover .v { color: var(--phosphor); }
 .cm-zoom button:hover { border-color: var(--phosphor); color: var(--phosphor); }
 .cm-zoom button.rst { width: auto; height: 22px; font-size: 9px; letter-spacing: 0.06em; padding: 0 7px; text-transform: uppercase; font-family: var(--font-mono); }
 
+/* Nodes pop in when they first appear. React remounts the <g> for a new node id,
+   so the animation fires exactly once per genuinely-new node. Only transform is
+   animated — opacity belongs to the replay scrubber and must not be overridden. */
+.cm-node { animation: cmPop .42s cubic-bezier(.34, 1.56, .64, 1);
+  transform-box: fill-box; transform-origin: center; }
+@keyframes cmPop {
+  from { transform: scale(.25); }
+  60%  { transform: scale(1.08); }
+  to   { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .cm-node { animation: none; } }
+
+.cm-live-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 9.5px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--calm); cursor: pointer;
+  background: color-mix(in srgb, var(--calm) 10%, transparent); border: 1px solid
+  color-mix(in srgb, var(--calm) 40%, transparent); border-radius: 99px; padding: 3px 9px; }
+.cm-live-btn:hover { background: color-mix(in srgb, var(--calm) 20%, transparent); }
+.cm-live-btn svg { width: 10px; height: 10px; }
+
+/* the C2 addresses the graph did not draw */
+.cm-morelist { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow-y: auto; }
+.cm-morerow { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+  font-size: 11.5px; color: var(--paper); background: none; border: none; cursor: pointer;
+  padding: 4px 6px; border-radius: 4px; }
+.cm-morerow:hover { background: color-mix(in srgb, var(--alert) 12%, transparent); }
+.cm-morerow .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--alert); flex: none; }
+
 .cm-maplegend { position: absolute; left: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 11px;
   font-size: 9px; color: var(--haze); pointer-events: none; }
 .cm-maplegend span { display: inline-flex; align-items: center; gap: 4px; }
