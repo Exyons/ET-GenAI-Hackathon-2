@@ -764,8 +764,37 @@ a.kpi.drill:hover { background: #1a2536; }
 }
 
 /* ---------- theme toggle ---------- */
-.chip.theme-chip { cursor: pointer; }
-.chip.theme-chip:hover { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.45); }
+/* Sun/moon toggle. One disc plus a mask circle: parked over the disc it bites a
+   crescent out of it (moon); slid away the disc is whole and the rays fan in
+   (sun). Everything animates, so the two states read as one object turning. */
+.theme-btn { width: 30px; height: 30px; flex: none; display: inline-flex;
+  align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--ink-2);
+  color: var(--haze); transition: color .2s, border-color .2s, background .2s; }
+.theme-btn:hover { color: var(--phosphor); border-color: rgba(245, 166, 35, 0.45);
+  background: rgba(245, 166, 35, 0.08); }
+.theme-btn:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 2px; }
+
+.theme-svg { width: 17px; height: 17px; overflow: visible; }
+.theme-disc { fill: currentColor; transition: r .35s cubic-bezier(.4, 0, .2, 1); }
+.theme-bite { transition: cx .35s cubic-bezier(.4, 0, .2, 1), cy .35s cubic-bezier(.4, 0, .2, 1); }
+.theme-rays { stroke: currentColor; stroke-width: 2; opacity: 0;
+  transform-origin: 12px 12px; transform: rotate(-60deg) scale(.4);
+  transition: opacity .3s, transform .35s cubic-bezier(.4, 0, .2, 1); }
+
+/* dark → moon: disc full size, bite parked on it, rays hidden (the default) */
+.theme-btn.dark .theme-disc { r: 9px; }
+.theme-btn.dark .theme-bite { cx: 18px; cy: 7px; }
+
+/* light → sun: disc shrinks to a core, bite slides off, rays fan out */
+.theme-btn.light .theme-disc { r: 5.5px; }
+.theme-btn.light .theme-bite { cx: 32px; cy: -8px; }
+.theme-btn.light .theme-rays { opacity: 1; transform: rotate(0) scale(1); }
+.theme-btn.light { color: var(--phosphor); }
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-disc, .theme-bite, .theme-rays { transition: none; }
+}
 .theme-switch { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .tsw { font-size: 12px; padding: 8px 16px; background: var(--ink-2); color: var(--haze); border: none;
   cursor: pointer; font-family: var(--font-mono); }

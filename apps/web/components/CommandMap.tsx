@@ -238,11 +238,14 @@ export function CommandMap({
   }, []);
 
   const focus = incidents[0] ?? null;
-  // fetch the focus incident detail (evidence + C2 edges + predicted)
+  // Fetch the focus incident detail — it supplies every C2, account and process
+  // node. Re-fetch whenever the incident *grows*, not just when the focus
+  // changes identity: an ongoing intrusion keeps the same id while gaining
+  // events, and keying on id alone froze the map until a page reload.
   useEffect(() => {
     if (!focus) { setFocusDetail(null); return; }
     getIncident(focus.id).then(setFocusDetail).catch(() => {});
-  }, [focus?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focus?.id, focus?.event_count, focus?.end]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { nodes, edges } = useMemo(() => buildGraph(incidents, focusDetail),
     [incidents, focusDetail]);
