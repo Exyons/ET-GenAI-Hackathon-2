@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveAction, getActions, getIncident, getNetworkDetail, getPlaybooks, PLAYBOOK_TITLE,
   rejectAction, revertAction,
-  type IncidentDetail, type NetworkDetail, type PlaybookInfo, type ResponseAction,
+  type Forensics, type IncidentDetail, type NetworkDetail, type PlaybookInfo, type ResponseAction,
 } from "../lib/api";
 import { Icon } from "./Icon";
 import { ThemeToggle } from "./ThemeToggle";
@@ -57,7 +57,10 @@ type Decision = {
   key: string; playbook: string; title: string; sub: string; dot: string;
   readOnly: boolean; reversible: boolean; reason: string;
   actions: ResponseAction[]; status: DStatus;
+  tier: number; escalation: boolean; gateNote: string;
 };
+
+const TIER_LABEL = ["observe", "precision", "vector", "isolate"];
 
 const STATUS_META: Record<DStatus, { label: string; color: string }> = {
   pending: { label: "AWAITING APPROVAL", color: "var(--phosphor)" },
@@ -83,6 +86,7 @@ function buildDecisions(actions: ResponseAction[], catalog: Record<string, Playb
       dot: PLAYBOOK_DOT[a.playbook] ?? "var(--haze)",
       readOnly: READ_ONLY.has(a.playbook), reversible: a.reversible,
       reason: a.reason, status: childPhase(a),
+      tier: a.tier ?? 1, escalation: a.escalation ?? false, gateNote: a.gate_note ?? "",
     });
   }
   // block_ip — aggregate all addresses into one decision
@@ -94,15 +98,16 @@ function buildDecisions(actions: ResponseAction[], catalog: Record<string, Playb
       dot: "var(--phosphor)", readOnly: false, reversible: true,
       reason: `${entity} opened outbound channels to these addresses during the incident. One firewall rule per address — everything else on the host keeps working. Untick any address you want to leave open.`,
       status: rollUp(blocks),
+      tier: blocks[0].tier ?? 1, escalation: false, gateNote: "",
     });
   }
-  // pending first, then by playbook order
-  const order = ["isolate_host", "block", "disable_account", "kill_process", "snapshot"];
+  // pending first, then least-disruptive first — the ladder decides the order,
+  // so an escalation can never sit at the top of the queue
   return out.sort((a, b) => {
     const ap = a.status === "pending" ? 0 : 1, bp = b.status === "pending" ? 0 : 1;
     if (ap !== bp) return ap - bp;
-    return (order.indexOf(a.key === "block" ? "block" : a.playbook) + 1 || 9)
-      - (order.indexOf(b.key === "block" ? "block" : b.playbook) + 1 || 9);
+    if (a.escalation !== b.escalation) return a.escalation ? 1 : -1;
+    return a.tier - b.tier;
   });
 }
 
@@ -158,7 +163,10 @@ export function IncidentWorkspace({ id }: { id: string }) {
 
   const entity = d?.summary.entity ?? id;
   const decisions = useMemo(() => buildDecisions(actions, catalog, entity), [actions, catalog, entity]);
-  const pending = decisions.filter((x) => x.status === "pending");
+  // escalations are actions the evidence does NOT yet justify — they stay out of
+  // the decision queue so "isolate everything" never reads as the default move
+  const pending = decisions.filter((x) => x.status === "pending" && !x.escalation);
+  const escalations = decisions.filter((x) => x.status === "pending" && x.escalation);
   const resolved = decisions.filter((x) => x.status !== "pending");
 
   // default selection: first pending, else first
@@ -220,6 +228,19 @@ export function IncidentWorkspace({ id }: { id: string }) {
           {pending.map((dec) => (
             <QueueRow key={dec.key} dec={dec} active={dec.key === sel} onClick={() => setSel(dec.key)} />
           ))}
+
+          {escalations.length > 0 && (
+            <>
+              <div className="iw-queue-head divider">LAST RESORT · {escalations.length}</div>
+              <div className="iw-esc-note">
+                Available, but not recommended on the current evidence. Open one to see what
+                covers it instead.
+              </div>
+              {escalations.map((dec) => (
+                <QueueRow key={dec.key} dec={dec} active={dec.key === sel} onClick={() => setSel(dec.key)} />
+              ))}
+            </>
+          )}
 
           <div className="iw-queue-head divider">RESOLVED · {resolved.length}</div>
           {resolved.length === 0 ? (
@@ -352,6 +373,8 @@ function Detail({ dec, catalog, enrich, excluded, mode, busy, armedEnabled, setM
   const isBlock = dec.playbook === "block_ip";
   const selCount = dec.actions.filter((a) => childPhase(a) === "pending" && !excluded.has(a.id)).length;
 
+  const forensics = dec.actions.map((a) => a.result?.forensics).find(Boolean);
+
   // real command output collected from executed children
   const resultLines: string[] = [];
   for (const a of dec.actions) {
@@ -373,9 +396,22 @@ function Detail({ dec, catalog, enrich, excluded, mode, busy, armedEnabled, setM
         <span className="iw-dtitle">{dec.title}</span>
         {dec.reversible && !dec.readOnly && <span className="iw-badge rev">REVERSIBLE</span>}
         {dec.readOnly && <span className="iw-badge ro">READ-ONLY</span>}
+        <span className="iw-badge tier" title={`Response ladder tier ${dec.tier}`}>
+          T{dec.tier} · {TIER_LABEL[dec.tier] ?? "action"}
+        </span>
+        {dec.escalation && <span className="iw-badge esc">LAST RESORT</span>}
         <span className="spacer" />
         <span className="iw-dstatus mono" style={{ color: STATUS_META[st].color }}>{STATUS_META[st].label}</span>
       </div>
+
+      {/* the system arguing against its own most destructive option */}
+      {dec.escalation && dec.gateNote && (
+        <div className="iw-whynot">
+          <div className="iw-whynot-k mono">WHY THIS ISN&apos;T RECOMMENDED YET</div>
+          <div className="iw-whynot-t">{dec.gateNote}</div>
+        </div>
+      )}
+
       <div className="iw-reason">{dec.reason}</div>
 
       {/* block: IP table */}
@@ -435,8 +471,11 @@ function Detail({ dec, catalog, enrich, excluded, mode, busy, armedEnabled, setM
         </div>
       )}
 
+      {/* forensics: structured findings rather than a wall of ps aux */}
+      {forensics && <ForensicsReport data={forensics} />}
+
       {/* result (executed / reverted) */}
-      {(resultLines.length > 0 || st === "reverted") && (
+      {!forensics && (resultLines.length > 0 || st === "reverted") && (
         <div className={`iw-result${st === "live_done" ? " live" : ""}`}>
           {resultLines.map((ln, i) => <div className="iw-cmd mono" key={i}>{ln}</div>)}
           <div className="iw-result-tag mono">{resultTag}</div>
@@ -487,5 +526,83 @@ function Detail({ dec, catalog, enrich, excluded, mode, busy, armedEnabled, setM
         <span className="iw-foot-note mono">approver: operator</span>
       </div>
     </>
+  );
+}
+
+// ---- forensics report -------------------------------------------------------
+/** Renders the snapshot as findings an analyst can act on, not a terminal dump.
+ *  The headline is always the pivot: which process owns the incident's C2 socket. */
+function ForensicsReport({ data }: { data: Forensics }) {
+  const [raw, setRaw] = useState(false);
+  const attributed = data.connections.filter((c) => c.pid);
+
+  return (
+    <div className="iw-fx">
+      <div className="iw-fx-head">
+        <span className="iw-fx-title">Forensic findings</span>
+        <span className={`iw-badge ${data.root ? "ro" : "esc"}`}>{data.root ? "ROOT" : "DEGRADED"}</span>
+        <span className="spacer" />
+        <span className="iw-fx-meta mono">
+          {data.counts.ioc_matches} IOC match{data.counts.ioc_matches === 1 ? "" : "es"} ·{" "}
+          {data.counts.shown}/{data.counts.sockets} sockets
+        </span>
+      </div>
+
+      {data.degraded.map((d, i) => <div className="iw-fx-warn" key={i}>{d}</div>)}
+
+      {data.findings.length === 0 ? (
+        <div className="iw-fx-empty mono">
+          No process could be tied to this incident&apos;s addresses — the channel may already be closed.
+        </div>
+      ) : data.findings.map((f, i) => (
+        <div className={`iw-fx-find ${f.severity}`} key={i}>
+          <div className="iw-fx-ftitle">{f.title}</div>
+          <div className="iw-fx-fdetail">{f.detail}</div>
+          {f.sha256 && <div className="iw-fx-hash mono" title={f.sha256}>sha256 {f.sha256.slice(0, 32)}…</div>}
+        </div>
+      ))}
+
+      {attributed.length > 0 && (
+        <>
+          <div className="iw-fx-sub mono">ATTRIBUTED SOCKETS</div>
+          <div className="iw-fx-tbl">
+            {attributed.slice(0, 8).map((c, i) => (
+              <div className="iw-fx-row" key={i}>
+                <span className="a mono">{c.addr}</span>
+                <span className="b mono">{c.state.toLowerCase()}</span>
+                <span className="c mono">pid {c.pid}</span>
+                <span className="d" title={c.exe ?? ""}>{c.exe ?? c.cmdline ?? "—"}</span>
+                <span className="e mono">{c.user ?? "—"}</span>
+              </div>
+            ))}
+          </div>
+          {/* the parent chain is the 'how did they get in' answer */}
+          {attributed.filter((c) => c.parents?.length).slice(0, 2).map((c, i) => (
+            <div className="iw-fx-chain mono" key={i}>
+              <span className="k">pid {c.pid} launched by</span>{" "}
+              {c.parents!.map((p) => p.cmdline.split(" ")[0] || p.exe).join(" ← ")}
+            </div>
+          ))}
+        </>
+      )}
+
+      {data.persistence.length > 0 && (
+        <>
+          <div className="iw-fx-sub mono">PERSISTENCE TOUCHED IN THE LAST 24H</div>
+          {data.persistence.slice(0, 6).map((p, i) => (
+            <div className="iw-fx-row persist" key={i}>
+              <span className="d mono" title={p.path}>{p.path}</span>
+              <span className="e mono">{p.kind}</span>
+            </div>
+          ))}
+        </>
+      )}
+
+      <button type="button" className="iw-fx-toggle mono" onClick={() => setRaw((v) => !v)}>
+        {raw ? "hide" : "show"} raw collection
+      </button>
+      {raw && <pre className="iw-fx-raw mono">{JSON.stringify(data, null, 2)}</pre>}
+      <div className="iw-result-tag mono">READ-ONLY — evidence collected, host unchanged</div>
+    </div>
   );
 }

@@ -266,7 +266,10 @@ export function CommandMap({
     if (id.startsWith("ip:")) {
       const ip = id.slice(3);
       if (!ipCache[ip]) getNetworkDetail(ip).then((d) => setIpCache((c) => ({ ...c, [ip]: d }))).catch(() => {});
-    } else if (id !== "predicted" && id !== focus?.id) {
+    } else if (id !== "predicted" && id !== focus?.id
+               && !id.startsWith("acct:") && !id.startsWith("proc:") && !id.startsWith("more:")) {
+      // only host nodes carry an incident id — account/process detail is read
+      // straight off the focus timeline, so don't ask the API for them
       if (!incCache[id]) getIncident(id).then((d) => setIncCache((c) => ({ ...c, [id]: d }))).catch(() => {});
     }
   }, [ipCache, incCache, focus?.id]);

@@ -249,11 +249,18 @@ class LivePipeline:
                                         f"{len(inc.events)} events / {len(inc.sources)} sensors / "
                                         f"{len(inc.phases)} phases")
                 if self.action_store is not None:
-                    recs = recommend(inc)
+                    # peers let the ladder see lateral spread — the one signal that
+                    # actually justifies isolating a host
+                    peers = [p for p in self.incidents.values() if p is not inc]
+                    predicted = getattr(self.attributions.get(iid), "predicted_next", "") or ""
+                    recs = recommend(inc, peers=peers, predicted_next=predicted)
                     for r in recs:
                         self.action_store.create(iid, inc.entity, r["playbook"], r["target"],
-                                                 r["reason"], r["reversible"])
-                    self._log("responder", f"{iid} → {len(recs)} response actions recommended "
+                                                 r["reason"], r["reversible"], tier=r["tier"],
+                                                 escalation=r["escalation"], gate_note=r["gate_note"],
+                                                 params=r["params"])
+                    top = max((r["tier"] for r in recs if not r["escalation"]), default=0)
+                    self._log("responder", f"{iid} → tier {top} response · {len(recs)} actions "
                                             "· awaiting approval (human gate)")
                 new_hc.append((iid, inc))
         return new_hc

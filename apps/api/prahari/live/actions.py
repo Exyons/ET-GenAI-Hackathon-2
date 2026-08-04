@@ -26,6 +26,13 @@ class Action:
     target: str
     reason: str
     reversible: bool
+    # response-ladder placement: 0 observe · 1 precision · 2 vector · 3 isolate.
+    # `escalation` marks an action the evidence does NOT currently justify — the
+    # UI keeps those out of the decision queue, behind `gate_note`.
+    tier: int = 1
+    escalation: bool = False
+    gate_note: str = ""
+    params: dict = field(default_factory=dict)  # IOCs handed to the agent (forensics)
     status: str = "pending_approval"
     mode: str = "dry_run"     # dry_run | armed
     undo: bool = False        # a revert action
@@ -57,14 +64,22 @@ class ActionStore:
     def get(self, aid: str) -> Action | None:
         return self.actions.get(aid)
 
-    def create(self, incident_id, host, playbook, target, reason, reversible) -> Action:
-        # dedup: one open (non-undo) action per (incident, playbook, target)
+    def create(self, incident_id, host, playbook, target, reason, reversible,
+               tier=1, escalation=False, gate_note="", params=None) -> Action:
+        # dedup: one open (non-undo) action per (incident, playbook, target).
+        # Re-recommending refreshes the ladder verdict — an escalation the evidence
+        # now justifies must stop being labelled an escalation.
         for a in self.actions.values():
             if (not a.undo and a.status in OPEN_STATES
                     and (a.incident_id, a.playbook, a.target) == (incident_id, playbook, target)):
+                if (a.tier, a.escalation, a.gate_note) != (tier, escalation, gate_note):
+                    a.tier, a.escalation, a.gate_note = tier, escalation, gate_note
+                    a.reason = reason
+                    self._emit(a)
                 return a
         a = Action(id="act-" + uuid.uuid4().hex[:8], incident_id=incident_id, host=host,
-                   playbook=playbook, target=target, reason=reason, reversible=reversible)
+                   playbook=playbook, target=target, reason=reason, reversible=reversible,
+                   tier=tier, escalation=escalation, gate_note=gate_note, params=params or {})
         self.actions[a.id] = a
         self._emit(a)
         return a

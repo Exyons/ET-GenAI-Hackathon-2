@@ -43,9 +43,27 @@ def build_commands(playbook: str, target: str, undo: bool) -> list[str]:
     if playbook == "kill_process":
         return [] if undo else [f"pkill -f {t}"]
     if playbook == "snapshot":
-        return ["sh -c 'echo == processes ==; ps aux; echo; echo == connections ==; "
-                "ss -tunap 2>/dev/null; echo; echo == sessions ==; who; last -n 20 2>/dev/null'"]
+        # collected in-process by forensics_linux (see run) — this string is only
+        # what the audit log shows the operator
+        return ["prahari forensics — /proc socket→pid→exe attribution (read-only)"]
     return []
+
+
+def _snapshot(action: dict) -> dict:
+    """Targeted forensics. Read-only, so it runs even in dry-run — and it is fed
+    the incident's own IOCs so it answers 'which process owns that C2 socket'
+    rather than dumping ps aux."""
+    params = action.get("params") or {}
+    try:
+        import forensics_linux
+    except ImportError as e:  # collector deployed without the module
+        return {"ran": False, "dry_run": True, "command": build_commands("snapshot", "", False)[0],
+                "error": f"forensics module unavailable: {e}"}
+    data = forensics_linux.collect(ioc_ips=params.get("ips") or [],
+                                   ioc_commands=params.get("commands") or [])
+    return {"ran": True, "dry_run": False, "read_only": True,
+            "command": build_commands("snapshot", "", False)[0],
+            "exit_code": 0, "forensics": data}
 
 
 def run(action: dict, allow_armed: bool) -> dict:
@@ -53,6 +71,10 @@ def run(action: dict, allow_armed: bool) -> dict:
     target = action.get("target", "")
     undo = bool(action.get("undo"))
     armed = action.get("mode") == "armed"
+
+    if playbook == "snapshot" and not undo:
+        return _snapshot(action)
+
     cmds = build_commands(playbook, target, undo)
     command = " && ".join(cmds)
 

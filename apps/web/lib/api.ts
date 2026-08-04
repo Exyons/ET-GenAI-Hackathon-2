@@ -190,6 +190,40 @@ export type Metrics = {
 export type ActionStatus =
   | "pending_approval" | "approved" | "dispatched" | "executed" | "failed" | "rejected" | "reverted";
 
+export type ForensicConnection = {
+  addr: string;
+  state: string;
+  pid?: string | null;
+  user?: string | null;
+  exe?: string | null;
+  cmdline?: string | null;
+  cwd?: string | null;
+  sha256?: string | null;
+  flags: string[];
+  parents?: { pid: string; exe: string | null; cmdline: string; user: string | null }[];
+};
+
+export type ForensicFinding = {
+  severity: "critical" | "warn" | string;
+  title: string;
+  detail: string;
+  pid?: string;
+  sha256?: string | null;
+};
+
+/** Structured output of the targeted snapshot playbook (socket → pid → binary). */
+export type Forensics = {
+  collected_at: string;
+  root: boolean;
+  ioc_ips: string[];
+  findings: ForensicFinding[];
+  connections: ForensicConnection[];
+  processes: ForensicConnection[];
+  persistence: { path: string; kind: string; modified: string }[];
+  counts: { sockets: number; shown: number; ioc_matches: number };
+  degraded: string[];
+};
+
 export type ActionResult = {
   ran: boolean;
   dry_run: boolean;
@@ -198,6 +232,8 @@ export type ActionResult = {
   exit_code?: number | null;
   error?: string | null;
   note?: string;
+  read_only?: boolean;
+  forensics?: Forensics;
 };
 
 export type ResponseAction = {
@@ -208,6 +244,11 @@ export type ResponseAction = {
   target: string;
   reason: string;
   reversible: boolean;
+  /** response ladder: 0 observe · 1 precision · 2 vector · 3 isolate */
+  tier: number;
+  /** true when the evidence does not justify this action yet — gate_note says why */
+  escalation: boolean;
+  gate_note: string;
   status: ActionStatus;
   mode: "dry_run" | "armed";
   undo: boolean;

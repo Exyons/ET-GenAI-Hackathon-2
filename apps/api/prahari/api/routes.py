@@ -159,6 +159,9 @@ class ResultBody(BaseModel):
     exit_code: int | None = None
     error: str | None = None
     note: str = ""
+    read_only: bool = False
+    # structured output of the snapshot playbook (socket → pid → binary → parents)
+    forensics: dict | None = None
 
 
 def _require_action(aid: str):
