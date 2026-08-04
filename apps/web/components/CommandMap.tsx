@@ -37,6 +37,7 @@ function isPublicIp(ip: string): boolean {
   return true;
 }
 
+function plural(n: number, word: string): string { return n === 1 ? word : `${word}s`; }
 function clock(iso: string): string { return new Date(iso).toISOString().slice(11, 19); }
 function hm(iso: string): string { return new Date(iso).toISOString().slice(11, 16); }
 function fmtBytes(n: number): string {
@@ -341,9 +342,23 @@ export function CommandMap({
           <div className="k mono">EVENTS / MIN</div><div className="v mono">{fleet?.rate_epm ?? 0}</div><div className="s mono">{compact(status?.events_seen ?? 0)} total</div>
         </Link>
         <div className="cm-cell"><div className="k mono">SENSORS</div><div className="v mono">{online}/{hosts.length}</div><div className="s mono">reporting &lt; 15s</div></div>
-        <Link href="/telemetry?view=flagged" className="cm-cell"><div className="k mono">FLAGGED</div><div className="v mono" style={{ color: (status?.flagged_recent ?? 0) > 0 ? "var(--phosphor)" : undefined }}>{status?.flagged_recent ?? 0}</div><div className="s mono">in window</div></Link>
-        <Link href="/telemetry?view=incidents" className="cm-cell"><div className="k mono">INCIDENTS</div><div className="v mono">{status?.incident_count ?? 0}</div><div className="s mono">live correlated</div></Link>
-        <Link href="/telemetry?view=high" className="cm-cell hi"><div className="k mono">HIGH CONF</div><div className="v mono" style={{ color: "var(--alert)" }}>{status?.high_confidence_count ?? 0}</div><div className="s mono">multi-source</div></Link>
+        {/* the sub-label states the UNIT: these tiles mix events and incidents,
+            and one high-confidence incident deliberately contains many events */}
+        <Link href="/telemetry?view=flagged" className="cm-cell" title="Individual events the detectors flagged in the current window">
+          <div className="k mono">FLAGGED</div>
+          <div className="v mono" style={{ color: (status?.flagged_recent ?? 0) > 0 ? "var(--phosphor)" : undefined }}>{status?.flagged_recent ?? 0}</div>
+          <div className="s mono">{plural(status?.flagged_recent ?? 0, "event")} in window</div>
+        </Link>
+        <Link href="/telemetry?view=incidents" className="cm-cell" title="Flagged events correlated onto one entity within a time window">
+          <div className="k mono">INCIDENTS</div>
+          <div className="v mono">{status?.incident_count ?? 0}</div>
+          <div className="s mono">correlated {plural(status?.incident_count ?? 0, "incident")}</div>
+        </Link>
+        <Link href="/telemetry?view=high" className="cm-cell hi" title="Incidents fusing 2+ sensors across 2+ kill-chain phases. Each one usually contains many events — that is the point of fusion.">
+          <div className="k mono">HIGH CONF</div>
+          <div className="v mono" style={{ color: "var(--alert)" }}>{status?.high_confidence_count ?? 0}</div>
+          <div className="s mono">multi-source {plural(status?.high_confidence_count ?? 0, "incident")}</div>
+        </Link>
       </div>
 
       {/* body */}
